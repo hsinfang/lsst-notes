@@ -1,0 +1,18 @@
+
+tr activator {
+    site local {
+        pfn "/home/centos/lsstsw/build/pipe_supertask/bin/cmdLineActivator"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}
+tr hello {
+    site local {
+        pfn "/usr/bin/cat"
+        arch "x86"
+        os "linux"
+        type "INSTALLED"
+    }
+}
+
