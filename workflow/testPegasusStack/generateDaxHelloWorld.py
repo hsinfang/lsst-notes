@@ -11,10 +11,9 @@ a.addPFN(peg.PFN("f.a", site="local"))
 dax.addFile(a)
 
 hello = peg.Job(name="hello")
-b= peg.File("f.b")
 hello.uses(a, link=peg.Link.INPUT)
-hello.addArguments(a)
-hello.setStdout(b)
+b= peg.File("repo/f.b")
+hello.addArguments(b)
 hello.uses(b, link=peg.Link.OUTPUT)
 dax.addJob(hello)
 
