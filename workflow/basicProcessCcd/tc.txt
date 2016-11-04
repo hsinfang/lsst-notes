@@ -7,3 +7,12 @@ tr processCcd {
         type "INSTALLED"
     }
 }
+
+tr wrapMakeDiscreteSkyMap {
+    site local {
+        pfn "/home/centos/lsst-notes/workflow/basicProcessCcd/wrapMakeDiscreteSkyMap.sh"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}
