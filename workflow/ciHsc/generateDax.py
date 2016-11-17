@@ -47,18 +47,24 @@ tasksProcessCcdList = []
 for data in sum(allData.itervalues(), []):
     logger.debug("processCcd dataId: %s", data.dataId)
 
-    filePathRaw = mapperInput.map_raw(data.dataId).getLocations()[0]
-    inputRaw = peg.File(os.path.basename(filePathRaw))
-    inputRaw.addPFN(peg.PFN(filePathRaw, site="local"))
-    logger.debug("dataId: %s input filePathRaw: %s", data.name, filePathRaw)
-    dax.addFile(inputRaw)
-
     processCcd = peg.Job(name="processCcd")
     processCcd.addArguments(inputRepo, "--output", outPath, "--no-versions",
                             data.id())
-    processCcd.uses(inputRaw, link=peg.Link.INPUT)
     processCcd.uses(registry, link=peg.Link.INPUT)
     processCcd.uses(mapperFile, link=peg.Link.INPUT)
+
+    # Listing these files are not necessary, because a Butler repo is used
+    # directly for running ProcessCcdTask
+    if False:
+        for inputType in ["raw", "bias", "dark", "flat", "bfKernel"]:
+            mapFunc  = getattr(mapperInput, "map_"+inputType)
+            filePath = mapFunc(data.dataId).getLocations()[0]
+            logger.debug("%s: input: %s", data.name, filePath)
+            infile = peg.File(os.path.basename(filePath))
+            infile.addPFN(peg.PFN(filePath, site="local"))
+            if not dax.hasFile(infile):
+                dax.addFile(infile)
+            processCcd.uses(infile, link=peg.Link.INPUT)
 
     filePathCalexp = mapper.map_calexp(data.dataId).getLocations()[0]
     calexp = peg.File(filePathCalexp)
