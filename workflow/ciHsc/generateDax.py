@@ -21,6 +21,7 @@ logger.debug("outPath: %s",outPath)
 # Assuming ci_hsc has been run beforehand and the data repo has been created
 ciHscDir = lsst.utils.getPackageDir('ci_hsc')
 inputRepo = os.path.join(ciHscDir, "DATA")
+calibRepo = os.path.join(inputRepo, "CALIB")
 
 # Construct these butler and mappers only for creating dax, not for actual runs.
 inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo) # read-only input
@@ -41,6 +42,11 @@ registry = peg.File(os.path.join(outPath, "registry.sqlite3"))
 registry.addPFN(peg.PFN(filePathRegistry, site="local"))
 dax.addFile(registry)
 
+filePathCalibRegistry = os.path.join(calibRepo, "calibRegistry.sqlite3")
+calibRegistry = peg.File(os.path.join(outPath, "calibRegistry.sqlite3"))
+calibRegistry.addPFN(peg.PFN(filePathCalibRegistry, site="local"))
+dax.addFile(calibRegistry)
+
 calexpList = []
 tasksProcessCcdList = []
 
@@ -51,6 +57,7 @@ for data in sum(allData.itervalues(), []):
     processCcd.addArguments(inputRepo, "--output", outPath, "--no-versions",
                             data.id())
     processCcd.uses(registry, link=peg.Link.INPUT)
+    processCcd.uses(calibRegistry, link=peg.Link.INPUT)
     processCcd.uses(mapperFile, link=peg.Link.INPUT)
 
     # Listing these files are not necessary, because a Butler repo is used
