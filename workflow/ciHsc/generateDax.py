@@ -54,24 +54,29 @@ for data in sum(allData.itervalues(), []):
     logger.debug("processCcd dataId: %s", data.dataId)
 
     processCcd = peg.Job(name="processCcd")
-    processCcd.addArguments(inputRepo, "--output", outPath, "--no-versions",
+    processCcd.addArguments(outPath, "--calib", outPath, "--output", outPath, "--no-versions",
                             data.id())
     processCcd.uses(registry, link=peg.Link.INPUT)
     processCcd.uses(calibRegistry, link=peg.Link.INPUT)
     processCcd.uses(mapperFile, link=peg.Link.INPUT)
 
-    # Listing these files are not necessary, because a Butler repo is used
-    # directly for running ProcessCcdTask
-    if False:
-        for inputType in ["raw", "bias", "dark", "flat", "bfKernel"]:
-            mapFunc  = getattr(mapperInput, "map_"+inputType)
-            filePath = mapFunc(data.dataId).getLocations()[0]
-            logger.debug("%s: input: %s", data.name, filePath)
-            infile = peg.File(os.path.basename(filePath))
-            infile.addPFN(peg.PFN(filePath, site="local"))
-            if not dax.hasFile(infile):
-                dax.addFile(infile)
-            processCcd.uses(infile, link=peg.Link.INPUT)
+    filePath = mapperInput.map_raw(data.dataId).getLocations()[0]
+    lfn = filePath.replace(inputRepo, outPath)
+    infile = peg.File(lfn)
+    infile.addPFN(peg.PFN(filePath, site="local"))
+    logger.debug("%s: input: %s -> %s", data.name, filePath, lfn)
+    dax.addFile(infile)
+    processCcd.uses(infile, link=peg.Link.INPUT)
+    for inputType in ["bias", "dark", "flat", "bfKernel"]:
+        mapFunc  = getattr(mapperInput, "map_"+inputType)
+        filePath = mapFunc(data.dataId).getLocations()[0]
+        lfn = filePath.replace(calibRepo, outPath)
+        infile = peg.File(lfn)
+        infile.addPFN(peg.PFN(filePath, site="local"))
+        logger.debug("%s: input: %s -> %s", data.name, filePath, lfn)
+        if not dax.hasFile(infile):
+            dax.addFile(infile)
+        processCcd.uses(infile, link=peg.Link.INPUT)
 
     filePathCalexp = mapper.map_calexp(data.dataId).getLocations()[0]
     calexp = peg.File(filePathCalexp)
