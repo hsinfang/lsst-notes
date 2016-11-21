@@ -15,14 +15,14 @@ logger.setLevel(lsst.log.DEBUG)
 # this local repois not used at all for actual job submission and run.
 # Real submitted run dumps output in scratch (specified in the site catalog).
 outPath = 'peg'
-logger.debug("outPath: %s",outPath)
+logger.debug("outPath: %s", outPath)
 
 obsTestDir = lsst.utils.getPackageDir('obs_test')
 inputDir = os.path.join(obsTestDir, "data", "input")
 
 # Construct these butler and mappers only for creating dax, not for actual runs.
-inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=TestMapper, root=inputDir) # read-only input
-outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=TestMapper, root=outPath) # write-only output
+inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=TestMapper, root=inputDir)  # read-only input
+outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=TestMapper, root=outPath)  # write-only output
 butler = dafPersist.Butler(inputs=inputArgs, outputs=outPath)
 mapperInput = TestMapper(root=inputDir)
 mapper = TestMapper(root=inputDir, outputRoot=outPath)

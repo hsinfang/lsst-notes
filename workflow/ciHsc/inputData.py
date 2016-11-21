@@ -2,6 +2,7 @@
 # Excerpted from ci_hsc/SConstruct
 from lsst.pipe.base import Struct
 
+
 class Data(Struct):
     """Data we can process"""
 

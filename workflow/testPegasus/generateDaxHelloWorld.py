@@ -6,12 +6,12 @@ import os
 
 dax = peg.ADAG("hello")
 
-a= peg.File("f.a")
+a = peg.File("f.a")
 a.addPFN(peg.PFN("f.a", site="local"))
 dax.addFile(a)
 
 hello = peg.Job(name="hello")
-b= peg.File("f.b")
+b = peg.File("f.b")
 hello.uses(a, link=peg.Link.INPUT)
 hello.addArguments(a)
 hello.setStdout(b)

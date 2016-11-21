@@ -16,7 +16,7 @@ logger.setLevel(lsst.log.DEBUG)
 # this local repo is not used at all for actual job submission and run.
 # Real submitted run dumps output in scratch (specified in the site catalog).
 outPath = 'peg'
-logger.debug("outPath: %s",outPath)
+logger.debug("outPath: %s", outPath)
 
 # Assuming ci_hsc has been run beforehand and the data repo has been created
 ciHscDir = lsst.utils.getPackageDir('ci_hsc')
@@ -24,8 +24,8 @@ inputRepo = os.path.join(ciHscDir, "DATA")
 calibRepo = os.path.join(inputRepo, "CALIB")
 
 # Construct these butler and mappers only for creating dax, not for actual runs.
-inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo) # read-only input
-outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath) # write-only output
+inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
+outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath)  # write-only output
 butler = dafPersist.Butler(inputs=inputArgs, outputs=outPath)
 mapperInput = HscMapper(root=inputRepo)
 mapper = HscMapper(root=inputRepo, outputRoot=outPath)
@@ -68,7 +68,7 @@ for data in sum(allData.itervalues(), []):
     dax.addFile(infile)
     processCcd.uses(infile, link=peg.Link.INPUT)
     for inputType in ["bias", "dark", "flat", "bfKernel"]:
-        mapFunc  = getattr(mapperInput, "map_"+inputType)
+        mapFunc = getattr(mapperInput, "map_"+inputType)
         filePath = mapFunc(data.dataId).getLocations()[0]
         lfn = filePath.replace(calibRepo, outPath)
         infile = peg.File(lfn)
