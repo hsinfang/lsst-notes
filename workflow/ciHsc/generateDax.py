@@ -100,19 +100,20 @@ for data in sum(allData.itervalues(), []):
     calexpList.append(calexp)
     tasksProcessCcdList.append(processCcd)
 
-makeSkyMap = peg.Job(name="makeDiscreteSkyMap")
+# Get the skymap config from ci_hsc package
+filePathSkymap = os.path.join(ciHscDir, "skymap.py")
+skymapConfig = peg.File("skymap.py")
+skymapConfig.addPFN(peg.PFN(filePathSkymap, site="local"))
+dax.addFile(skymapConfig)
+
+makeSkyMap = peg.Job(name="makeSkyMap")
 makeSkyMap.uses(mapperFile, link=peg.Link.INPUT)
 makeSkyMap.uses(registry, link=peg.Link.INPUT)
-makeSkyMap.addArguments(outPath, "--output", outPath, "--no-versions",
-                        " ".join(data.id() for data in sum(allData.itervalues(), [])))
-logger.debug("Adding makeSkyMap with dataId: %s",
-             " ".join(data.id() for data in sum(allData.itervalues(), [])))
+makeSkyMap.uses(skymapConfig, link=peg.Link.INPUT)
+makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig, "--no-versions")
 logMakeSkyMap = peg.File("logMakeSkyMap")
 makeSkyMap.setStderr(logMakeSkyMap)
 makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
-
-for calexp in calexpList:
-    makeSkyMap.uses(calexp, link=peg.Link.INPUT)
 
 filePathSkyMap = mapper.map_deepCoadd_skyMap({}).getLocations()[0]
 skyMap = peg.File(filePathSkyMap)
@@ -121,8 +122,6 @@ logger.debug("filePathSkyMap: %s", filePathSkyMap)
 makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT, transfer=True, register=True)
 
 dax.addJob(makeSkyMap)
-for job in tasksProcessCcdList:
-    dax.depends(makeSkyMap, job)
 
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
