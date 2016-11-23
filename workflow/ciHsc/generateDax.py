@@ -165,6 +165,7 @@ for filterName in allExposures:
     # Pipeline: assembleCoadd per filter
     assembleCoadd = peg.Job(name="assembleCoadd")
     assembleCoadd.uses(mapperFile, link=peg.Link.INPUT)
+    assembleCoadd.uses(registry, link=peg.Link.INPUT)
     assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
     assembleCoadd.addArguments(
             outPath, "--output", outPath, "--no-versions", ident,
