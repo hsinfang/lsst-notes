@@ -26,3 +26,12 @@ tr makeDiscreteSkyMap {
         type "INSTALLED"
     }
 }
+
+tr makeCoaddTempExp {
+    site local {
+        pfn "/home/centos/lsstsw/stack/Linux64/pipe_tasks/12.1-6-g0c5b709+6/bin/makeCoaddTempExp.py"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}

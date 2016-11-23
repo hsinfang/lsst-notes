@@ -47,7 +47,9 @@ calibRegistry = peg.File(os.path.join(outPath, "calibRegistry.sqlite3"))
 calibRegistry.addPFN(peg.PFN(filePathCalibRegistry, site="local"))
 dax.addFile(calibRegistry)
 
-calexpList = []
+# Pipeline: processCcd
+
+calexpDict = {}
 tasksProcessCcdList = []
 
 for data in sum(allData.itervalues(), []):
@@ -97,9 +99,10 @@ for data in sum(allData.itervalues(), []):
 
     dax.addJob(processCcd)
 
-    calexpList.append(calexp)
+    calexpDict[data.name] = calexp
     tasksProcessCcdList.append(processCcd)
 
+# Pipeline: makeSkyMap
 # Get the skymap config from ci_hsc package
 filePathSkymap = os.path.join(ciHscDir, "skymap.py")
 skymapConfig = peg.File("skymap.py")
@@ -122,6 +125,41 @@ logger.debug("filePathSkyMap: %s", filePathSkyMap)
 makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
 
 dax.addJob(makeSkyMap)
+
+# Pipeline: makeCoaddTempExp per visit per filter
+for filterName in allExposures:
+    ident = "--id " + patchId + " filter=" + filterName
+    for visit in allExposures[filterName]:
+        makeCoaddTempExp = peg.Job(name="makeCoaddTempExp")
+        makeCoaddTempExp.uses(mapperFile, link=peg.Link.INPUT)
+        makeCoaddTempExp.uses(skyMap, link=peg.Link.INPUT)
+        for data in allExposures[filterName][visit]:
+            makeCoaddTempExp.uses(calexpDict[data.name], link=peg.Link.INPUT)
+
+        makeCoaddTempExp.addArguments(
+            outPath, "--output", outPath, "--no-versions",
+            ident, " -c doApplyUberCal=False ",
+            " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+        )
+        logger.debug("Adding makeCoaddTempExp %s %s %s %s %s %s %s",
+            outPath, "--output", outPath, "--no-versions",
+            ident, " -c doApplyUberCal=False ",
+            " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+        )
+
+        coaddTempExpId = dict(filter=filterName, visit=visit, **patchDataId)
+        logMakeCoaddTempExp = peg.File("logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId) 
+        makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
+        makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
+
+        lfn = mapper.map_deepCoadd_tempExp(coaddTempExpId).getLocations()[0]
+        deepCoadd_tempExp = peg.File(lfn)
+        deepCoadd_tempExp.addPFN(peg.PFN(lfn, site="local"))
+        logger.debug("coaddTempExp %s: output %s", coaddTempExpId, filePathSrc)
+        makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
+
+        dax.addJob(makeCoaddTempExp)
+
 
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
