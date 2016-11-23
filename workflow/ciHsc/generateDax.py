@@ -129,6 +129,7 @@ dax.addJob(makeSkyMap)
 # Pipeline: makeCoaddTempExp per visit per filter
 for filterName in allExposures:
     ident = "--id " + patchId + " filter=" + filterName
+    coaddTempExpList = []
     for visit in allExposures[filterName]:
         makeCoaddTempExp = peg.Job(name="makeCoaddTempExp")
         makeCoaddTempExp.uses(mapperFile, link=peg.Link.INPUT)
@@ -157,8 +158,41 @@ for filterName in allExposures:
         deepCoadd_tempExp.addPFN(peg.PFN(lfn, site="local"))
         logger.debug("coaddTempExp %s: output %s", coaddTempExpId, lfn)
         makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
+        coaddTempExpList.append(deepCoadd_tempExp)
 
         dax.addJob(makeCoaddTempExp)
+
+    # Pipeline: assembleCoadd per filter
+    assembleCoadd = peg.Job(name="assembleCoadd")
+    assembleCoadd.uses(mapperFile, link=peg.Link.INPUT)
+    assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
+    assembleCoadd.addArguments(
+            outPath, "--output", outPath, "--no-versions", ident,
+            " ".join(data.id("--selectId") for data in allData[filterName])
+    )
+    logger.debug("Adding assembleCoadd %s %s %s %s %s %s",
+            outPath, "--output", outPath, "--no-versions", ident,
+            " ".join(data.id("--selectId") for data in allData[filterName])
+    )
+
+    # calexp_md is used in SelectDataIdContainer
+    for data in allData[filterName]:
+        assembleCoadd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+
+    for coaddTempExp in coaddTempExpList:
+        assembleCoadd.uses(coaddTempExp, link=peg.Link.INPUT)
+
+    coaddId = dict(filter=filterName, **patchDataId)
+    logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddTempExpId)
+    assembleCoadd.setStderr(logAssembleCoadd)
+    assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
+
+    lfn = mapper.map_deepCoadd(coaddId).getLocations()[0]
+    coadd = peg.File(lfn)
+    coadd.addPFN(peg.PFN(lfn, site="local"))
+    logger.debug("assembleCoadd %s: output %s", coaddId, lfn)
+    assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
+    dax.addJob(assembleCoadd)
 
 
 f = open("ciHsc.dax", "w")

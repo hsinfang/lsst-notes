@@ -35,3 +35,12 @@ tr makeCoaddTempExp {
         type "INSTALLED"
     }
 }
+
+tr assembleCoadd {
+    site local {
+        pfn "${PIPE_TASKS_DIR}/bin/assembleCoadd.py"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}
