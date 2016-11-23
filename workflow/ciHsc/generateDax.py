@@ -88,8 +88,8 @@ for data in sum(allData.itervalues(), []):
     src.addPFN(peg.PFN(filePathSrc, site="local"))
     logger.debug("dataId %s output filePathSrc: %s", data.name, filePathSrc)
 
-    processCcd.uses(calexp, link=peg.Link.OUTPUT, transfer=True, register=True)
-    processCcd.uses(src, link=peg.Link.OUTPUT, transfer=True, register=True)
+    processCcd.uses(calexp, link=peg.Link.OUTPUT)
+    processCcd.uses(src, link=peg.Link.OUTPUT)
 
     logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
     processCcd.setStderr(logProcessCcd)
@@ -119,7 +119,7 @@ filePathSkyMap = mapper.map_deepCoadd_skyMap({}).getLocations()[0]
 skyMap = peg.File(filePathSkyMap)
 skyMap.addPFN(peg.PFN(filePathSkyMap, site="local"))
 logger.debug("filePathSkyMap: %s", filePathSkyMap)
-makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT, transfer=True, register=True)
+makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
 
 dax.addJob(makeSkyMap)
 
