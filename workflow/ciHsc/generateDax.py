@@ -155,7 +155,7 @@ for filterName in allExposures:
         lfn = mapper.map_deepCoadd_tempExp(coaddTempExpId).getLocations()[0]
         deepCoadd_tempExp = peg.File(lfn)
         deepCoadd_tempExp.addPFN(peg.PFN(lfn, site="local"))
-        logger.debug("coaddTempExp %s: output %s", coaddTempExpId, filePathSrc)
+        logger.debug("coaddTempExp %s: output %s", coaddTempExpId, lfn)
         makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
 
         dax.addJob(makeCoaddTempExp)
