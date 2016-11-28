@@ -184,7 +184,7 @@ for filterName in allExposures:
         assembleCoadd.uses(coaddTempExp, link=peg.Link.INPUT)
 
     coaddId = dict(filter=filterName, **patchDataId)
-    logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddTempExpId)
+    logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
     assembleCoadd.setStderr(logAssembleCoadd)
     assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
 
@@ -194,6 +194,28 @@ for filterName in allExposures:
     logger.debug("assembleCoadd %s: output %s", coaddId, lfn)
     assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
     dax.addJob(assembleCoadd)
+
+    # Pipeline: detectCoaddSources each coadd (per filter)
+    detectCoaddSources = peg.Job(name="detectCoaddSources")
+    detectCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
+    detectCoaddSources.uses(coadd, link=peg.Link.INPUT)
+    detectCoaddSources.addArguments(outPath, "--output", outPath, "--no-versions", ident)
+
+    logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+    detectCoaddSources.setStderr(logDetectCoaddSources)
+    detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
+
+    for outputType in ["deepCoadd_calexp", "deepCoadd_calexp_background", "deepCoadd_det", "deepCoadd_det_schema"]:
+        mapFunc = getattr(mapper, "map_" + outputType)
+        lfn = mapFunc(coaddId).getLocations()[0]
+        outFile = peg.File(lfn)
+        outFile.addPFN(peg.PFN(lfn, site="local"))
+        logger.debug("detectCoaddSources %s: output %s", coaddId, outFile)
+        if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema
+            dax.addFile(outFile)
+        detectCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
+
+    dax.addJob(detectCoaddSources)
 
 
 f = open("ciHsc.dax", "w")
