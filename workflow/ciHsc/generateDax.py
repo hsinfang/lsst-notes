@@ -227,6 +227,38 @@ for filterName in allExposures:
     dax.addJob(detectCoaddSources)
 
 
+# Pipeline: mergeCoaddDetections
+mergeCoaddDetections = peg.Job(name="mergeCoaddDetections")
+mergeCoaddDetections.uses(mapperFile, link=peg.Link.INPUT)
+mergeCoaddDetections.uses(skyMap, link=peg.Link.INPUT)
+lfn = mapper.map_deepCoadd_det_schema(patchDataId).getLocations()[0]
+mergeCoaddDetections.uses(lfn, link=peg.Link.INPUT)
+for filterName in allExposures:
+    coaddId = dict(filter=filterName, **patchDataId)
+    lfn = mapper.map_deepCoadd_det(coaddId).getLocations()[0]
+    mergeCoaddDetections.uses(lfn, link=peg.Link.INPUT)
+
+mergeCoaddDetections.addArguments(
+    outPath, "--output", outPath, " --doraise",
+    " --id " + patchId + " filter=" + '^'.join(allExposures.keys()))
+
+logMergeCoaddDetections = peg.File("logMergeCoaddDetections.%(tract)d-%(patch)s" % patchDataId)
+dax.addFile(logMergeCoaddDetections)
+mergeCoaddDetections.setStderr(logMergeCoaddDetections)
+mergeCoaddDetections.uses(logMergeCoaddDetections, link=peg.Link.OUTPUT)
+
+for outputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
+    mapFunc = getattr(mapper, "map_" + outputType)
+    lfn = mapFunc(patchDataId).getLocations()[0]
+    outFile = peg.File(lfn)
+    outFile.addPFN(peg.PFN(lfn, site="local"))
+    logger.debug("mergeCoaddDetections %s: output %s", patchId, outFile)
+    dax.addFile(outFile)
+    mergeCoaddDetections.uses(outFile, link=peg.Link.OUTPUT)
+
+dax.addJob(mergeCoaddDetections)
+
+
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
 f.close()
