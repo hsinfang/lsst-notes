@@ -57,7 +57,7 @@ for data in sum(allData.itervalues(), []):
 
     processCcd = peg.Job(name="processCcd")
     processCcd.addArguments(outPath, "--calib", outPath, "--output", outPath,
-                            data.id())
+                            " --doraise", data.id())
     processCcd.uses(registry, link=peg.Link.INPUT)
     processCcd.uses(calibRegistry, link=peg.Link.INPUT)
     processCcd.uses(mapperFile, link=peg.Link.INPUT)
@@ -113,7 +113,7 @@ makeSkyMap = peg.Job(name="makeSkyMap")
 makeSkyMap.uses(mapperFile, link=peg.Link.INPUT)
 makeSkyMap.uses(registry, link=peg.Link.INPUT)
 makeSkyMap.uses(skymapConfig, link=peg.Link.INPUT)
-makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig)
+makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig, " --doraise")
 logMakeSkyMap = peg.File("logMakeSkyMap")
 makeSkyMap.setStderr(logMakeSkyMap)
 makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
@@ -138,12 +138,12 @@ for filterName in allExposures:
             makeCoaddTempExp.uses(calexpDict[data.name], link=peg.Link.INPUT)
 
         makeCoaddTempExp.addArguments(
-            outPath, "--output", outPath,
+            outPath, "--output", outPath, " --doraise",
             ident, " -c doApplyUberCal=False ",
             " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
         )
         logger.debug("Adding makeCoaddTempExp %s %s %s %s %s %s %s",
-            outPath, "--output", outPath,
+            outPath, "--output", outPath, " --doraise",
             ident, " -c doApplyUberCal=False ",
             " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
         )
@@ -168,11 +168,11 @@ for filterName in allExposures:
     assembleCoadd.uses(registry, link=peg.Link.INPUT)
     assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
     assembleCoadd.addArguments(
-            outPath, "--output", outPath, ident,
+            outPath, "--output", outPath, ident, " --doraise",
             " ".join(data.id("--selectId") for data in allData[filterName])
     )
     logger.debug("Adding assembleCoadd %s %s %s %s %s %s",
-            outPath, "--output", outPath, ident,
+            outPath, "--output", outPath, ident, " --doraise",
             " ".join(data.id("--selectId") for data in allData[filterName])
     )
 
@@ -199,7 +199,7 @@ for filterName in allExposures:
     detectCoaddSources = peg.Job(name="detectCoaddSources")
     detectCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
     detectCoaddSources.uses(coadd, link=peg.Link.INPUT)
-    detectCoaddSources.addArguments(outPath, "--output", outPath, ident)
+    detectCoaddSources.addArguments(outPath, "--output", outPath, ident, " --doraise")
 
     logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
     detectCoaddSources.setStderr(logDetectCoaddSources)
