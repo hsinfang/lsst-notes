@@ -83,17 +83,19 @@ for data in sum(allData.itervalues(), []):
     filePathCalexp = mapper.map_calexp(data.dataId).getLocations()[0]
     calexp = peg.File(filePathCalexp)
     calexp.addPFN(peg.PFN(filePathCalexp, site="local"))
+    dax.addFile(calexp)
     logger.debug("dataId %s output filePathCalexp: %s", data.name, filePathCalexp)
+    processCcd.uses(calexp, link=peg.Link.OUTPUT)
 
     filePathSrc = mapper.map_src(data.dataId).getLocations()[0]
     src = peg.File(filePathSrc)
     src.addPFN(peg.PFN(filePathSrc, site="local"))
+    dax.addFile(src)
     logger.debug("dataId %s output filePathSrc: %s", data.name, filePathSrc)
-
-    processCcd.uses(calexp, link=peg.Link.OUTPUT)
     processCcd.uses(src, link=peg.Link.OUTPUT)
 
     logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
+    dax.addFile(logProcessCcd)
     processCcd.setStderr(logProcessCcd)
     processCcd.uses(logProcessCcd, link=peg.Link.OUTPUT)
 
@@ -115,12 +117,14 @@ makeSkyMap.uses(registry, link=peg.Link.INPUT)
 makeSkyMap.uses(skymapConfig, link=peg.Link.INPUT)
 makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig, " --doraise")
 logMakeSkyMap = peg.File("logMakeSkyMap")
+dax.addFile(logMakeSkyMap)
 makeSkyMap.setStderr(logMakeSkyMap)
 makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
 
 filePathSkyMap = mapper.map_deepCoadd_skyMap({}).getLocations()[0]
 skyMap = peg.File(filePathSkyMap)
 skyMap.addPFN(peg.PFN(filePathSkyMap, site="local"))
+dax.addFile(skyMap)
 logger.debug("filePathSkyMap: %s", filePathSkyMap)
 makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
 
@@ -150,12 +154,14 @@ for filterName in allExposures:
 
         coaddTempExpId = dict(filter=filterName, visit=visit, **patchDataId)
         logMakeCoaddTempExp = peg.File("logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId) 
+        dax.addFile(logMakeCoaddTempExp)
         makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
         makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
 
         lfn = mapper.map_deepCoadd_tempExp(coaddTempExpId).getLocations()[0]
         deepCoadd_tempExp = peg.File(lfn)
         deepCoadd_tempExp.addPFN(peg.PFN(lfn, site="local"))
+        dax.addFile(deepCoadd_tempExp)
         logger.debug("coaddTempExp %s: output %s", coaddTempExpId, lfn)
         makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
         coaddTempExpList.append(deepCoadd_tempExp)
@@ -185,12 +191,14 @@ for filterName in allExposures:
 
     coaddId = dict(filter=filterName, **patchDataId)
     logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+    dax.addFile(logAssembleCoadd)
     assembleCoadd.setStderr(logAssembleCoadd)
     assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
 
     lfn = mapper.map_deepCoadd(coaddId).getLocations()[0]
     coadd = peg.File(lfn)
     coadd.addPFN(peg.PFN(lfn, site="local"))
+    dax.addFile(coadd)
     logger.debug("assembleCoadd %s: output %s", coaddId, lfn)
     assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
     dax.addJob(assembleCoadd)
@@ -202,6 +210,7 @@ for filterName in allExposures:
     detectCoaddSources.addArguments(outPath, "--output", outPath, ident, " --doraise")
 
     logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+    dax.addFile(logDetectCoaddSources)
     detectCoaddSources.setStderr(logDetectCoaddSources)
     detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
 
