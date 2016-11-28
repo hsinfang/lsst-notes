@@ -71,3 +71,12 @@ tr measureCoaddSources {
         type "INSTALLED"
     }
 }
+
+tr mergeCoaddMeasurements {
+    site local {
+        pfn "${PIPE_TASKS_DIR}/bin/mergeCoaddMeasurements.py"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}

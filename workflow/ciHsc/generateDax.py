@@ -304,6 +304,38 @@ for filterName in allExposures:
     dax.addJob(measureCoaddSources)
 
 
+# Pipeline: mergeCoaddMeasurements
+mergeCoaddMeasurements = peg.Job(name="mergeCoaddMeasurements")
+mergeCoaddMeasurements.uses(mapperFile, link=peg.Link.INPUT)
+lfn = mapper.map_deepCoadd_meas_schema(patchDataId).getLocations()[0]
+mergeCoaddMeasurements.uses(lfn, link=peg.Link.INPUT)
+for filterName in allExposures:
+    coaddId = dict(filter=filterName, **patchDataId)
+    lfn = mapper.map_deepCoadd_meas(coaddId).getLocations()[0]
+    mergeCoaddMeasurements.uses(lfn, link=peg.Link.INPUT)
+
+mergeCoaddMeasurements.addArguments(
+    outPath, "--output", outPath, " --doraise",
+    " --id " + patchId + " filter=" + '^'.join(allExposures.keys())
+)
+
+logMergeCoaddMeasurements = peg.File("logMergeCoaddMeasurements.%(tract)d-%(patch)s" % patchDataId)
+dax.addFile(logMergeCoaddMeasurements)
+mergeCoaddMeasurements.setStderr(logMergeCoaddMeasurements)
+mergeCoaddMeasurements.uses(logMergeCoaddMeasurements, link=peg.Link.OUTPUT)
+
+for outputType in ["deepCoadd_ref", "deepCoadd_ref_schema"]:
+    mapFunc = getattr(mapper, "map_" + outputType)
+    lfn = mapFunc(patchDataId).getLocations()[0]
+    outFile = peg.File(lfn)
+    outFile.addPFN(peg.PFN(lfn, site="local"))
+    logger.debug("mergeCoaddMeasurements %s: output %s", patchId, outFile)
+    dax.addFile(outFile)
+    mergeCoaddMeasurements.uses(outFile, link=peg.Link.OUTPUT)
+
+dax.addJob(mergeCoaddMeasurements)
+
+
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
 f.close()
