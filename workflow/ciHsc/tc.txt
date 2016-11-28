@@ -80,3 +80,12 @@ tr mergeCoaddMeasurements {
         type "INSTALLED"
     }
 }
+
+tr forcedPhotCoadd {
+    site local {
+        pfn "${MEAS_BASE_DIR}/bin/forcedPhotCoadd.py"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}

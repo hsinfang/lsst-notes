@@ -336,6 +336,46 @@ for outputType in ["deepCoadd_ref", "deepCoadd_ref_schema"]:
 dax.addJob(mergeCoaddMeasurements)
 
 
+# Pipeline: forcedPhotCoadd for each filter
+for filterName in allExposures:
+    forcedPhotCoadd = peg.Job(name="forcedPhotCoadd")
+    forcedPhotCoadd.uses(mapperFile, link=peg.Link.INPUT)
+    forcedPhotCoadd.uses(skyMap, link=peg.Link.INPUT)
+    for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
+        mapFunc = getattr(mapper, "map_" + inputType)
+        lfn = mapFunc(patchDataId).getLocations()[0]
+        logger.debug("forcedPhotCoadd input: %s", lfn)
+        forcedPhotCoadd.uses(lfn, link=peg.Link.INPUT)
+
+    coaddId = dict(filter=filterName, **patchDataId)
+    for inputType in ["deepCoadd_calexp", "deepCoadd_meas"]:
+        mapFunc = getattr(mapper, "map_" + inputType)
+        lfn = mapFunc(coaddId).getLocations()[0]
+        forcedPhotCoadd.uses(lfn, link=peg.Link.INPUT)
+
+    forcedPhotCoadd.addArguments(
+        outPath, "--output", outPath, " --doraise",
+        " --id " + patchId + " filter=" + filterName
+    )
+
+    logForcedPhotCoadd = peg.File("logForcedPhotCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+    dax.addFile(logForcedPhotCoadd)
+    forcedPhotCoadd.setStderr(logForcedPhotCoadd)
+    forcedPhotCoadd.uses(logForcedPhotCoadd, link=peg.Link.OUTPUT)
+
+    for outputType in ["deepCoadd_forced_src_schema",  "deepCoadd_forced_src" ]:
+        mapFunc = getattr(mapper, "map_" + outputType)
+        lfn = mapFunc(coaddId).getLocations()[0]
+        outFile = peg.File(lfn)
+        outFile.addPFN(peg.PFN(lfn, site="local"))
+        logger.debug("forcedPhotCoadd %s: output %s", coaddId, outFile)
+        if not dax.hasFile(outFile):  # Only one deepCoadd_forced_src_schema (TODO)
+            dax.addFile(outFile)
+        forcedPhotCoadd.uses(outFile, link=peg.Link.OUTPUT)
+
+    dax.addJob(forcedPhotCoadd)
+
+
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
 f.close()
