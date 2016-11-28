@@ -50,6 +50,7 @@ dax.addFile(calibRegistry)
 # Pipeline: processCcd
 
 calexpDict = {}
+srcDict = {}
 tasksProcessCcdList = []
 
 for data in sum(allData.itervalues(), []):
@@ -102,6 +103,7 @@ for data in sum(allData.itervalues(), []):
     dax.addJob(processCcd)
 
     calexpDict[data.name] = calexp
+    srcDict[data.name] = src
     tasksProcessCcdList.append(processCcd)
 
 # Pipeline: makeSkyMap
@@ -220,7 +222,7 @@ for filterName in allExposures:
         outFile = peg.File(lfn)
         outFile.addPFN(peg.PFN(lfn, site="local"))
         logger.debug("detectCoaddSources %s: output %s", coaddId, outFile)
-        if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema
+        if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema (TODO)
             dax.addFile(outFile)
         detectCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
 
@@ -257,6 +259,49 @@ for outputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd
     mergeCoaddDetections.uses(outFile, link=peg.Link.OUTPUT)
 
 dax.addJob(mergeCoaddDetections)
+
+
+# Pipeline: measureCoaddSources for each filter
+for filterName in allExposures:
+    measureCoaddSources = peg.Job(name="measureCoaddSources")
+    measureCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
+    measureCoaddSources.uses(registry, link=peg.Link.INPUT)
+    measureCoaddSources.uses(skyMap, link=peg.Link.INPUT)
+    for inputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
+        mapFunc = getattr(mapper, "map_" + inputType)
+        lfn = mapFunc(patchDataId).getLocations()[0]
+        measureCoaddSources.uses(lfn, link=peg.Link.INPUT)
+
+    coaddId = dict(filter=filterName, **patchDataId)
+    for inputType in ["deepCoadd_calexp"]:
+        mapFunc = getattr(mapper, "map_" + inputType)
+        lfn = mapFunc(coaddId).getLocations()[0]
+        measureCoaddSources.uses(lfn, link=peg.Link.INPUT)
+
+    # src is used in the PropagateVisitFlagsTask subtask
+    for data in allData[filterName]:
+        measureCoaddSources.uses(srcDict[data.name], link=peg.Link.INPUT)
+
+    measureCoaddSources.addArguments(
+        outPath, "--output", outPath, " --doraise",
+        " --id " + patchId + " filter=" + filterName
+    )
+    logMeasureCoaddSources = peg.File("logMeasureCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+    dax.addFile(logMeasureCoaddSources)
+    measureCoaddSources.setStderr(logMeasureCoaddSources)
+    measureCoaddSources.uses(logMeasureCoaddSources, link=peg.Link.OUTPUT)
+
+    for outputType in ["deepCoadd_meas_schema", "deepCoadd_meas", "deepCoadd_srcMatch"]:
+        mapFunc = getattr(mapper, "map_" + outputType)
+        lfn = mapFunc(coaddId).getLocations()[0]
+        outFile = peg.File(lfn)
+        outFile.addPFN(peg.PFN(lfn, site="local"))
+        logger.debug("measureCoaddSources %s: output %s", coaddId, outFile)
+        if not dax.hasFile(outFile):  # Only one deepCoadd_meas_schema (TODO)
+            dax.addFile(outFile)
+        measureCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
+
+    dax.addJob(measureCoaddSources)
 
 
 f = open("ciHsc.dax", "w")
