@@ -376,6 +376,49 @@ for filterName in allExposures:
     dax.addJob(forcedPhotCoadd)
 
 
+# Pipeline: forcedPhotCcd for each ccd
+#
+# Get the config file forcedPhotCcdConfig.py from ci_hsc package
+filePath = os.path.join(ciHscDir, "forcedPhotCcdConfig.py")
+forcedPhotCcdConfig = peg.File("forcedPhotCcdConfig.py")
+forcedPhotCcdConfig.addPFN(peg.PFN(filePath, site="local"))
+dax.addFile(forcedPhotCcdConfig)
+
+for data in sum(allData.itervalues(), []):
+    forcedPhotCcd = peg.Job(name="forcedPhotCcd")
+    forcedPhotCcd.uses(mapperFile, link=peg.Link.INPUT)
+    forcedPhotCcd.uses(registry, link=peg.Link.INPUT)
+    forcedPhotCcd.uses(skyMap, link=peg.Link.INPUT)
+    forcedPhotCcd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+    for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
+        mapFunc = getattr(mapper, "map_" + inputType)
+        lfn = mapFunc(patchDataId).getLocations()[0]
+        forcedPhotCcd.uses(lfn, link=peg.Link.INPUT)
+
+    forcedPhotCcd.uses(forcedPhotCcdConfig, link=peg.Link.INPUT)
+    forcedPhotCcd.addArguments(outPath, "--output", outPath, " --doraise",
+                               "-C", forcedPhotCcdConfig, data.id(tract=0))
+    logger.debug("forcedPhotCcd with %s", data.id(tract=0))
+
+    logForcedPhotCcd = peg.File("logForcedPhotCcd.%s" % data.name)
+    dax.addFile(logForcedPhotCcd)
+    forcedPhotCcd.setStderr(logForcedPhotCcd)
+    forcedPhotCcd.uses(logForcedPhotCcd, link=peg.Link.OUTPUT)
+
+    for outputType in ["forced_src", "forced_src_schema"]:
+        dataId = dict(tract=0, **data.dataId)
+        mapFunc = getattr(mapper, "map_" + outputType)
+        lfn = mapFunc(dataId).getLocations()[0]
+        outFile = peg.File(lfn)
+        outFile.addPFN(peg.PFN(lfn, site="local"))
+        logger.debug("forcedPhotCcd %s: output %s", coaddId, outFile)
+        if not dax.hasFile(outFile):  # Only one forced_src_schema (TODO)
+            dax.addFile(outFile)
+        forcedPhotCcd.uses(outFile, link=peg.Link.OUTPUT)
+
+    dax.addJob(forcedPhotCcd)
+
+
 f = open("ciHsc.dax", "w")
 dax.writeXML(f)
 f.close()

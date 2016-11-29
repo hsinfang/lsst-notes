@@ -89,3 +89,12 @@ tr forcedPhotCoadd {
         type "INSTALLED"
     }
 }
+
+tr forcedPhotCcd {
+    site local {
+        pfn "${MEAS_BASE_DIR}/bin/forcedPhotCcd.py"
+        arch "x86_64"
+        os "linux"
+        type "INSTALLED"
+    }
+}
