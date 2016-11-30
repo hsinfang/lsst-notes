@@ -107,8 +107,6 @@ def generateDax(name="dax"):
     dax.addFile(forcedPhotCcdConfig)
 
     # Pipeline: processCcd
-    calexpDict = {}
-    srcDict = {}
     tasksProcessCcdList = []
 
     for data in sum(allData.itervalues(), []):
@@ -131,15 +129,10 @@ def generateDax(name="dax"):
                 dax.addFile(inFile)
             processCcd.uses(inFile, link=peg.Link.INPUT)
 
-        outFile = getDataFile(mapper, "calexp", data.dataId, create=True)
-        dax.addFile(outFile)
-        processCcd.uses(outFile, link=peg.Link.OUTPUT)
-        calexpDict[data.name] = outFile
-
-        outFile = getDataFile(mapper, "src", data.dataId, create=True)
-        dax.addFile(outFile)
-        processCcd.uses(outFile, link=peg.Link.OUTPUT)
-        srcDict[data.name] = outFile
+        for outputType in ["calexp", "src"]:
+            outFile = getDataFile(mapper, outputType, data.dataId, create=True)
+            dax.addFile(outFile)
+            processCcd.uses(outFile, link=peg.Link.OUTPUT)
 
         logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
         dax.addFile(logProcessCcd)
@@ -175,7 +168,8 @@ def generateDax(name="dax"):
             makeCoaddTempExp.uses(mapperFile, link=peg.Link.INPUT)
             makeCoaddTempExp.uses(skyMap, link=peg.Link.INPUT)
             for data in allExposures[filterName][visit]:
-                makeCoaddTempExp.uses(calexpDict[data.name], link=peg.Link.INPUT)
+                calexp = getDataFile(mapper, "calexp", data.dataId, create=False)
+                makeCoaddTempExp.uses(calexp, link=peg.Link.INPUT)
 
             makeCoaddTempExp.addArguments(
                 outPath, "--output", outPath, " --doraise",
@@ -220,7 +214,8 @@ def generateDax(name="dax"):
 
         # calexp_md is used in SelectDataIdContainer
         for data in allData[filterName]:
-            assembleCoadd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+            calexp = getDataFile(mapper, "calexp", data.dataId, create=False)
+            assembleCoadd.uses(calexp, link=peg.Link.INPUT)
 
         for coaddTempExp in coaddTempExpList:
             assembleCoadd.uses(coaddTempExp, link=peg.Link.INPUT)
@@ -301,7 +296,8 @@ def generateDax(name="dax"):
 
         # src is used in the PropagateVisitFlagsTask subtask
         for data in allData[filterName]:
-            measureCoaddSources.uses(srcDict[data.name], link=peg.Link.INPUT)
+            src = getDataFile(mapper, "src", data.dataId, create=False)
+            measureCoaddSources.uses(src, link=peg.Link.INPUT)
 
         measureCoaddSources.addArguments(
             outPath, "--output", outPath, " --doraise",
@@ -388,7 +384,8 @@ def generateDax(name="dax"):
         forcedPhotCcd.uses(mapperFile, link=peg.Link.INPUT)
         forcedPhotCcd.uses(registry, link=peg.Link.INPUT)
         forcedPhotCcd.uses(skyMap, link=peg.Link.INPUT)
-        forcedPhotCcd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+        calexp = getDataFile(mapper, "calexp", data.dataId, create=False)
+        forcedPhotCcd.uses(calexp, link=peg.Link.INPUT)
         for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
             inFile = getDataFile(mapper, inputType, patchDataId, create=False)
             forcedPhotCcd.uses(inFile, link=peg.Link.INPUT)
