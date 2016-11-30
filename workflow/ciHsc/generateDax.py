@@ -72,14 +72,15 @@ def generateDax(name="dax"):
     """Generate a Pegasus DAX abstract workflow"""
     dax = peg.ADAG(name)
 
-    # Construct these butler and mappers only for creating dax, not for actual runs.
-    inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
-    outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath)  # write-only output
-    butler = dafPersist.Butler(inputs=inputArgs, outputs=outPath)
+    # Construct these mappers only for creating dax, not for actual runs.
+    inputArgs = dafPersist.RepositoryArgs(
+        mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
+    outputArgs = dafPersist.RepositoryArgs(
+        mode='w', mapper=HscMapper, root=outPath)  # write-only output
     mapperInput = HscMapper(root=inputRepo)
     mapper = HscMapper(root=inputRepo, outputRoot=outPath)
 
-
+    # Get the following butler or config files directly from ci_hsc package
     filePathMapper = os.path.join(inputRepo, "_mapper")
     mapperFile = peg.File(os.path.join(outPath, "_mapper"))
     mapperFile.addPFN(peg.PFN(filePathMapper, site="local"))
@@ -95,8 +96,17 @@ def generateDax(name="dax"):
     calibRegistry.addPFN(peg.PFN(filePathCalibRegistry, site="local"))
     dax.addFile(calibRegistry)
 
-    # Pipeline: processCcd
+    filePath = os.path.join(ciHscDir, "skymap.py")
+    skymapConfig = peg.File("skymap.py")
+    skymapConfig.addPFN(peg.PFN(filePath, site="local"))
+    dax.addFile(skymapConfig)
 
+    filePath = os.path.join(ciHscDir, "forcedPhotCcdConfig.py")
+    forcedPhotCcdConfig = peg.File("forcedPhotCcdConfig.py")
+    forcedPhotCcdConfig.addPFN(peg.PFN(filePath, site="local"))
+    dax.addFile(forcedPhotCcdConfig)
+
+    # Pipeline: processCcd
     calexpDict = {}
     srcDict = {}
     tasksProcessCcdList = []
@@ -115,7 +125,8 @@ def generateDax(name="dax"):
         dax.addFile(inFile)
         processCcd.uses(inFile, link=peg.Link.INPUT)
         for inputType in ["bias", "dark", "flat", "bfKernel"]:
-            inFile = getDataFile(mapperInput, inputType, data.dataId, create=True, replaceRootPath=calibRepo)
+            inFile = getDataFile(mapperInput, inputType, data.dataId,
+                                 create=True, replaceRootPath=calibRepo)
             if not dax.hasFile(inFile):
                 dax.addFile(inFile)
             processCcd.uses(inFile, link=peg.Link.INPUT)
@@ -139,12 +150,6 @@ def generateDax(name="dax"):
         tasksProcessCcdList.append(processCcd)
 
     # Pipeline: makeSkyMap
-    # Get the skymap config from ci_hsc package
-    filePathSkymap = os.path.join(ciHscDir, "skymap.py")
-    skymapConfig = peg.File("skymap.py")
-    skymapConfig.addPFN(peg.PFN(filePathSkymap, site="local"))
-    dax.addFile(skymapConfig)
-
     makeSkyMap = peg.Job(name="makeSkyMap")
     makeSkyMap.uses(mapperFile, link=peg.Link.INPUT)
     makeSkyMap.uses(registry, link=peg.Link.INPUT)
@@ -177,14 +182,16 @@ def generateDax(name="dax"):
                 ident, " -c doApplyUberCal=False ",
                 " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
             )
-            logger.debug("Adding makeCoaddTempExp %s %s %s %s %s %s %s",
+            logger.debug(
+                "Adding makeCoaddTempExp %s %s %s %s %s %s %s",
                 outPath, "--output", outPath, " --doraise",
                 ident, " -c doApplyUberCal=False ",
                 " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
             )
 
             coaddTempExpId = dict(filter=filterName, visit=visit, **patchDataId)
-            logMakeCoaddTempExp = peg.File("logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId) 
+            logMakeCoaddTempExp = peg.File(
+                "logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId)
             dax.addFile(logMakeCoaddTempExp)
             makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
             makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
@@ -202,12 +209,13 @@ def generateDax(name="dax"):
         assembleCoadd.uses(registry, link=peg.Link.INPUT)
         assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
         assembleCoadd.addArguments(
-                outPath, "--output", outPath, ident, " --doraise",
-                " ".join(data.id("--selectId") for data in allData[filterName])
+            outPath, "--output", outPath, ident, " --doraise",
+            " ".join(data.id("--selectId") for data in allData[filterName])
         )
-        logger.debug("Adding assembleCoadd %s %s %s %s %s %s",
-                outPath, "--output", outPath, ident, " --doraise",
-                " ".join(data.id("--selectId") for data in allData[filterName])
+        logger.debug(
+            "Adding assembleCoadd %s %s %s %s %s %s",
+            outPath, "--output", outPath, ident, " --doraise",
+            " ".join(data.id("--selectId") for data in allData[filterName])
         )
 
         # calexp_md is used in SelectDataIdContainer
@@ -234,7 +242,8 @@ def generateDax(name="dax"):
         detectCoaddSources.uses(coadd, link=peg.Link.INPUT)
         detectCoaddSources.addArguments(outPath, "--output", outPath, ident, " --doraise")
 
-        logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        logDetectCoaddSources = peg.File(
+            "logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
         dax.addFile(logDetectCoaddSources)
         detectCoaddSources.setStderr(logDetectCoaddSources)
         detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
@@ -260,7 +269,8 @@ def generateDax(name="dax"):
 
     mergeCoaddDetections.addArguments(
         outPath, "--output", outPath, " --doraise",
-        " --id " + patchId + " filter=" + '^'.join(allExposures.keys()))
+        " --id " + patchId + " filter=" + '^'.join(allExposures.keys())
+    )
 
     logMergeCoaddDetections = peg.File("logMergeCoaddDetections.%(tract)d-%(patch)s" % patchDataId)
     dax.addFile(logMergeCoaddDetections)
@@ -297,7 +307,8 @@ def generateDax(name="dax"):
             outPath, "--output", outPath, " --doraise",
             " --id " + patchId + " filter=" + filterName
         )
-        logMeasureCoaddSources = peg.File("logMeasureCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        logMeasureCoaddSources = peg.File(
+            "logMeasureCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
         dax.addFile(logMeasureCoaddSources)
         measureCoaddSources.setStderr(logMeasureCoaddSources)
         measureCoaddSources.uses(logMeasureCoaddSources, link=peg.Link.OUTPUT)
@@ -325,7 +336,8 @@ def generateDax(name="dax"):
         " --id " + patchId + " filter=" + '^'.join(allExposures.keys())
     )
 
-    logMergeCoaddMeasurements = peg.File("logMergeCoaddMeasurements.%(tract)d-%(patch)s" % patchDataId)
+    logMergeCoaddMeasurements = peg.File(
+        "logMergeCoaddMeasurements.%(tract)d-%(patch)s" % patchDataId)
     dax.addFile(logMergeCoaddMeasurements)
     mergeCoaddMeasurements.setStderr(logMergeCoaddMeasurements)
     mergeCoaddMeasurements.uses(logMergeCoaddMeasurements, link=peg.Link.OUTPUT)
@@ -361,7 +373,7 @@ def generateDax(name="dax"):
         forcedPhotCoadd.setStderr(logForcedPhotCoadd)
         forcedPhotCoadd.uses(logForcedPhotCoadd, link=peg.Link.OUTPUT)
 
-        for outputType in ["deepCoadd_forced_src_schema",  "deepCoadd_forced_src" ]:
+        for outputType in ["deepCoadd_forced_src_schema", "deepCoadd_forced_src"]:
             outFile = getDataFile(mapper, outputType, coaddId, create=True)
             if not dax.hasFile(outFile):  # Only one deepCoadd_forced_src_schema (TODO)
                 dax.addFile(outFile)
@@ -370,12 +382,6 @@ def generateDax(name="dax"):
         dax.addJob(forcedPhotCoadd)
 
     # Pipeline: forcedPhotCcd for each ccd
-    #
-    # Get the config file forcedPhotCcdConfig.py from ci_hsc package
-    filePath = os.path.join(ciHscDir, "forcedPhotCcdConfig.py")
-    forcedPhotCcdConfig = peg.File("forcedPhotCcdConfig.py")
-    forcedPhotCcdConfig.addPFN(peg.PFN(filePath, site="local"))
-    dax.addFile(forcedPhotCcdConfig)
 
     for data in sum(allData.itervalues(), []):
         forcedPhotCcd = peg.Job(name="forcedPhotCcd")
