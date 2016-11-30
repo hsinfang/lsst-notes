@@ -23,6 +23,7 @@ ciHscDir = lsst.utils.getPackageDir('ci_hsc')
 inputRepo = os.path.join(ciHscDir, "DATA")
 calibRepo = os.path.join(inputRepo, "CALIB")
 
+
 def getDataFile(mapper, datasetType, dataId, create=False, replaceRootPath=None):
     """Get the Pegasus File entry given Butler datasetType and dataId.
 
@@ -67,347 +68,349 @@ def getDataFile(mapper, datasetType, dataId, create=False, replaceRootPath=None)
     return fileEntry
 
 
-# Construct these butler and mappers only for creating dax, not for actual runs.
-inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
-outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath)  # write-only output
-butler = dafPersist.Butler(inputs=inputArgs, outputs=outPath)
-mapperInput = HscMapper(root=inputRepo)
-mapper = HscMapper(root=inputRepo, outputRoot=outPath)
+def generateDax(name="dax"):
+    """Generate a Pegasus DAX abstract workflow"""
+    dax = peg.ADAG(name)
 
-dax = peg.ADAG("CiHscDax")
+    # Construct these butler and mappers only for creating dax, not for actual runs.
+    inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
+    outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath)  # write-only output
+    butler = dafPersist.Butler(inputs=inputArgs, outputs=outPath)
+    mapperInput = HscMapper(root=inputRepo)
+    mapper = HscMapper(root=inputRepo, outputRoot=outPath)
 
-filePathMapper = os.path.join(inputRepo, "_mapper")
-mapperFile = peg.File(os.path.join(outPath, "_mapper"))
-mapperFile.addPFN(peg.PFN(filePathMapper, site="local"))
-dax.addFile(mapperFile)
 
-filePathRegistry = os.path.join(inputRepo, "registry.sqlite3")
-registry = peg.File(os.path.join(outPath, "registry.sqlite3"))
-registry.addPFN(peg.PFN(filePathRegistry, site="local"))
-dax.addFile(registry)
+    filePathMapper = os.path.join(inputRepo, "_mapper")
+    mapperFile = peg.File(os.path.join(outPath, "_mapper"))
+    mapperFile.addPFN(peg.PFN(filePathMapper, site="local"))
+    dax.addFile(mapperFile)
 
-filePathCalibRegistry = os.path.join(calibRepo, "calibRegistry.sqlite3")
-calibRegistry = peg.File(os.path.join(outPath, "calibRegistry.sqlite3"))
-calibRegistry.addPFN(peg.PFN(filePathCalibRegistry, site="local"))
-dax.addFile(calibRegistry)
+    filePathRegistry = os.path.join(inputRepo, "registry.sqlite3")
+    registry = peg.File(os.path.join(outPath, "registry.sqlite3"))
+    registry.addPFN(peg.PFN(filePathRegistry, site="local"))
+    dax.addFile(registry)
 
-# Pipeline: processCcd
+    filePathCalibRegistry = os.path.join(calibRepo, "calibRegistry.sqlite3")
+    calibRegistry = peg.File(os.path.join(outPath, "calibRegistry.sqlite3"))
+    calibRegistry.addPFN(peg.PFN(filePathCalibRegistry, site="local"))
+    dax.addFile(calibRegistry)
 
-calexpDict = {}
-srcDict = {}
-tasksProcessCcdList = []
+    # Pipeline: processCcd
 
-for data in sum(allData.itervalues(), []):
-    logger.debug("processCcd dataId: %s", data.dataId)
+    calexpDict = {}
+    srcDict = {}
+    tasksProcessCcdList = []
 
-    processCcd = peg.Job(name="processCcd")
-    processCcd.addArguments(outPath, "--calib", outPath, "--output", outPath,
-                            " --doraise", data.id())
-    processCcd.uses(registry, link=peg.Link.INPUT)
-    processCcd.uses(calibRegistry, link=peg.Link.INPUT)
-    processCcd.uses(mapperFile, link=peg.Link.INPUT)
+    for data in sum(allData.itervalues(), []):
+        logger.debug("processCcd dataId: %s", data.dataId)
 
-    inFile = getDataFile(mapperInput, "raw", data.dataId, create=True, replaceRootPath=inputRepo)
-    dax.addFile(inFile)
-    processCcd.uses(inFile, link=peg.Link.INPUT)
-    for inputType in ["bias", "dark", "flat", "bfKernel"]:
-        inFile = getDataFile(mapperInput, inputType, data.dataId, create=True, replaceRootPath=calibRepo)
-        if not dax.hasFile(inFile):
-            dax.addFile(inFile)
+        processCcd = peg.Job(name="processCcd")
+        processCcd.addArguments(outPath, "--calib", outPath, "--output", outPath,
+                                " --doraise", data.id())
+        processCcd.uses(registry, link=peg.Link.INPUT)
+        processCcd.uses(calibRegistry, link=peg.Link.INPUT)
+        processCcd.uses(mapperFile, link=peg.Link.INPUT)
+
+        inFile = getDataFile(mapperInput, "raw", data.dataId, create=True, replaceRootPath=inputRepo)
+        dax.addFile(inFile)
         processCcd.uses(inFile, link=peg.Link.INPUT)
+        for inputType in ["bias", "dark", "flat", "bfKernel"]:
+            inFile = getDataFile(mapperInput, inputType, data.dataId, create=True, replaceRootPath=calibRepo)
+            if not dax.hasFile(inFile):
+                dax.addFile(inFile)
+            processCcd.uses(inFile, link=peg.Link.INPUT)
 
-    outFile = getDataFile(mapper, "calexp", data.dataId, create=True)
-    dax.addFile(outFile)
-    processCcd.uses(outFile, link=peg.Link.OUTPUT)
-    calexpDict[data.name] = outFile
+        outFile = getDataFile(mapper, "calexp", data.dataId, create=True)
+        dax.addFile(outFile)
+        processCcd.uses(outFile, link=peg.Link.OUTPUT)
+        calexpDict[data.name] = outFile
 
-    outFile = getDataFile(mapper, "src", data.dataId, create=True)
-    dax.addFile(outFile)
-    processCcd.uses(outFile, link=peg.Link.OUTPUT)
-    srcDict[data.name] = outFile
+        outFile = getDataFile(mapper, "src", data.dataId, create=True)
+        dax.addFile(outFile)
+        processCcd.uses(outFile, link=peg.Link.OUTPUT)
+        srcDict[data.name] = outFile
 
-    logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
-    dax.addFile(logProcessCcd)
-    processCcd.setStderr(logProcessCcd)
-    processCcd.uses(logProcessCcd, link=peg.Link.OUTPUT)
+        logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
+        dax.addFile(logProcessCcd)
+        processCcd.setStderr(logProcessCcd)
+        processCcd.uses(logProcessCcd, link=peg.Link.OUTPUT)
 
-    dax.addJob(processCcd)
-    tasksProcessCcdList.append(processCcd)
+        dax.addJob(processCcd)
+        tasksProcessCcdList.append(processCcd)
 
-# Pipeline: makeSkyMap
-# Get the skymap config from ci_hsc package
-filePathSkymap = os.path.join(ciHscDir, "skymap.py")
-skymapConfig = peg.File("skymap.py")
-skymapConfig.addPFN(peg.PFN(filePathSkymap, site="local"))
-dax.addFile(skymapConfig)
+    # Pipeline: makeSkyMap
+    # Get the skymap config from ci_hsc package
+    filePathSkymap = os.path.join(ciHscDir, "skymap.py")
+    skymapConfig = peg.File("skymap.py")
+    skymapConfig.addPFN(peg.PFN(filePathSkymap, site="local"))
+    dax.addFile(skymapConfig)
 
-makeSkyMap = peg.Job(name="makeSkyMap")
-makeSkyMap.uses(mapperFile, link=peg.Link.INPUT)
-makeSkyMap.uses(registry, link=peg.Link.INPUT)
-makeSkyMap.uses(skymapConfig, link=peg.Link.INPUT)
-makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig, " --doraise")
-logMakeSkyMap = peg.File("logMakeSkyMap")
-dax.addFile(logMakeSkyMap)
-makeSkyMap.setStderr(logMakeSkyMap)
-makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
+    makeSkyMap = peg.Job(name="makeSkyMap")
+    makeSkyMap.uses(mapperFile, link=peg.Link.INPUT)
+    makeSkyMap.uses(registry, link=peg.Link.INPUT)
+    makeSkyMap.uses(skymapConfig, link=peg.Link.INPUT)
+    makeSkyMap.addArguments(outPath, "--output", outPath, "-C", skymapConfig, " --doraise")
+    logMakeSkyMap = peg.File("logMakeSkyMap")
+    dax.addFile(logMakeSkyMap)
+    makeSkyMap.setStderr(logMakeSkyMap)
+    makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
 
-skyMap = getDataFile(mapper, "deepCoadd_skyMap", {}, create=True)
-dax.addFile(skyMap)
-makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
+    skyMap = getDataFile(mapper, "deepCoadd_skyMap", {}, create=True)
+    dax.addFile(skyMap)
+    makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
 
-dax.addJob(makeSkyMap)
+    dax.addJob(makeSkyMap)
 
-# Pipeline: makeCoaddTempExp per visit per filter
-for filterName in allExposures:
-    ident = "--id " + patchId + " filter=" + filterName
-    coaddTempExpList = []
-    for visit in allExposures[filterName]:
-        makeCoaddTempExp = peg.Job(name="makeCoaddTempExp")
-        makeCoaddTempExp.uses(mapperFile, link=peg.Link.INPUT)
-        makeCoaddTempExp.uses(skyMap, link=peg.Link.INPUT)
-        for data in allExposures[filterName][visit]:
-            makeCoaddTempExp.uses(calexpDict[data.name], link=peg.Link.INPUT)
+    # Pipeline: makeCoaddTempExp per visit per filter
+    for filterName in allExposures:
+        ident = "--id " + patchId + " filter=" + filterName
+        coaddTempExpList = []
+        for visit in allExposures[filterName]:
+            makeCoaddTempExp = peg.Job(name="makeCoaddTempExp")
+            makeCoaddTempExp.uses(mapperFile, link=peg.Link.INPUT)
+            makeCoaddTempExp.uses(skyMap, link=peg.Link.INPUT)
+            for data in allExposures[filterName][visit]:
+                makeCoaddTempExp.uses(calexpDict[data.name], link=peg.Link.INPUT)
 
-        makeCoaddTempExp.addArguments(
-            outPath, "--output", outPath, " --doraise",
-            ident, " -c doApplyUberCal=False ",
-            " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+            makeCoaddTempExp.addArguments(
+                outPath, "--output", outPath, " --doraise",
+                ident, " -c doApplyUberCal=False ",
+                " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+            )
+            logger.debug("Adding makeCoaddTempExp %s %s %s %s %s %s %s",
+                outPath, "--output", outPath, " --doraise",
+                ident, " -c doApplyUberCal=False ",
+                " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+            )
+
+            coaddTempExpId = dict(filter=filterName, visit=visit, **patchDataId)
+            logMakeCoaddTempExp = peg.File("logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId) 
+            dax.addFile(logMakeCoaddTempExp)
+            makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
+            makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
+
+            deepCoadd_tempExp = getDataFile(mapper, "deepCoadd_tempExp", coaddTempExpId, create=True)
+            dax.addFile(deepCoadd_tempExp)
+            makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
+            coaddTempExpList.append(deepCoadd_tempExp)
+
+            dax.addJob(makeCoaddTempExp)
+
+        # Pipeline: assembleCoadd per filter
+        assembleCoadd = peg.Job(name="assembleCoadd")
+        assembleCoadd.uses(mapperFile, link=peg.Link.INPUT)
+        assembleCoadd.uses(registry, link=peg.Link.INPUT)
+        assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
+        assembleCoadd.addArguments(
+                outPath, "--output", outPath, ident, " --doraise",
+                " ".join(data.id("--selectId") for data in allData[filterName])
         )
-        logger.debug("Adding makeCoaddTempExp %s %s %s %s %s %s %s",
-            outPath, "--output", outPath, " --doraise",
-            ident, " -c doApplyUberCal=False ",
-            " ".join(data.id("--selectId") for data in allExposures[filterName][visit])
+        logger.debug("Adding assembleCoadd %s %s %s %s %s %s",
+                outPath, "--output", outPath, ident, " --doraise",
+                " ".join(data.id("--selectId") for data in allData[filterName])
         )
 
-        coaddTempExpId = dict(filter=filterName, visit=visit, **patchDataId)
-        logMakeCoaddTempExp = peg.File("logMakeCoaddTempExp.%(tract)d-%(patch)s-%(filter)s-%(visit)d" % coaddTempExpId) 
-        dax.addFile(logMakeCoaddTempExp)
-        makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
-        makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
+        # calexp_md is used in SelectDataIdContainer
+        for data in allData[filterName]:
+            assembleCoadd.uses(calexpDict[data.name], link=peg.Link.INPUT)
 
-        deepCoadd_tempExp = getDataFile(mapper, "deepCoadd_tempExp", coaddTempExpId, create=True)
-        dax.addFile(deepCoadd_tempExp)
-        makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
-        coaddTempExpList.append(deepCoadd_tempExp)
+        for coaddTempExp in coaddTempExpList:
+            assembleCoadd.uses(coaddTempExp, link=peg.Link.INPUT)
 
-        dax.addJob(makeCoaddTempExp)
+        coaddId = dict(filter=filterName, **patchDataId)
+        logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        dax.addFile(logAssembleCoadd)
+        assembleCoadd.setStderr(logAssembleCoadd)
+        assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
 
-    # Pipeline: assembleCoadd per filter
-    assembleCoadd = peg.Job(name="assembleCoadd")
-    assembleCoadd.uses(mapperFile, link=peg.Link.INPUT)
-    assembleCoadd.uses(registry, link=peg.Link.INPUT)
-    assembleCoadd.uses(skyMap, link=peg.Link.INPUT)
-    assembleCoadd.addArguments(
-            outPath, "--output", outPath, ident, " --doraise",
-            " ".join(data.id("--selectId") for data in allData[filterName])
-    )
-    logger.debug("Adding assembleCoadd %s %s %s %s %s %s",
-            outPath, "--output", outPath, ident, " --doraise",
-            " ".join(data.id("--selectId") for data in allData[filterName])
-    )
+        coadd = getDataFile(mapper, "deepCoadd", coaddId, create=True)
+        dax.addFile(coadd)
+        assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
+        dax.addJob(assembleCoadd)
 
-    # calexp_md is used in SelectDataIdContainer
-    for data in allData[filterName]:
-        assembleCoadd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+        # Pipeline: detectCoaddSources each coadd (per filter)
+        detectCoaddSources = peg.Job(name="detectCoaddSources")
+        detectCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
+        detectCoaddSources.uses(coadd, link=peg.Link.INPUT)
+        detectCoaddSources.addArguments(outPath, "--output", outPath, ident, " --doraise")
 
-    for coaddTempExp in coaddTempExpList:
-        assembleCoadd.uses(coaddTempExp, link=peg.Link.INPUT)
+        logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        dax.addFile(logDetectCoaddSources)
+        detectCoaddSources.setStderr(logDetectCoaddSources)
+        detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
 
-    coaddId = dict(filter=filterName, **patchDataId)
-    logAssembleCoadd = peg.File("logAssembleCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
-    dax.addFile(logAssembleCoadd)
-    assembleCoadd.setStderr(logAssembleCoadd)
-    assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
+        for outputType in ["deepCoadd_calexp", "deepCoadd_calexp_background", "deepCoadd_det", "deepCoadd_det_schema"]:
+            outFile = getDataFile(mapper, outputType, coaddId, create=True)
+            if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema (TODO)
+                dax.addFile(outFile)
+            detectCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
 
-    coadd = getDataFile(mapper, "deepCoadd", coaddId, create=True)
-    dax.addFile(coadd)
-    assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
-    dax.addJob(assembleCoadd)
+        dax.addJob(detectCoaddSources)
 
-    # Pipeline: detectCoaddSources each coadd (per filter)
-    detectCoaddSources = peg.Job(name="detectCoaddSources")
-    detectCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
-    detectCoaddSources.uses(coadd, link=peg.Link.INPUT)
-    detectCoaddSources.addArguments(outPath, "--output", outPath, ident, " --doraise")
-
-    logDetectCoaddSources = peg.File("logDetectCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
-    dax.addFile(logDetectCoaddSources)
-    detectCoaddSources.setStderr(logDetectCoaddSources)
-    detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
-
-    for outputType in ["deepCoadd_calexp", "deepCoadd_calexp_background", "deepCoadd_det", "deepCoadd_det_schema"]:
-        outFile = getDataFile(mapper, outputType, coaddId, create=True)
-        if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema (TODO)
-            dax.addFile(outFile)
-        detectCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
-
-    dax.addJob(detectCoaddSources)
-
-
-# Pipeline: mergeCoaddDetections
-mergeCoaddDetections = peg.Job(name="mergeCoaddDetections")
-mergeCoaddDetections.uses(mapperFile, link=peg.Link.INPUT)
-mergeCoaddDetections.uses(skyMap, link=peg.Link.INPUT)
-inFile = getDataFile(mapper, "deepCoadd_det_schema", patchDataId, create=False)
-mergeCoaddDetections.uses(inFile, link=peg.Link.INPUT)
-for filterName in allExposures:
-    coaddId = dict(filter=filterName, **patchDataId)
-    inFile = getDataFile(mapper, "deepCoadd_det", coaddId, create=False)
+    # Pipeline: mergeCoaddDetections
+    mergeCoaddDetections = peg.Job(name="mergeCoaddDetections")
+    mergeCoaddDetections.uses(mapperFile, link=peg.Link.INPUT)
+    mergeCoaddDetections.uses(skyMap, link=peg.Link.INPUT)
+    inFile = getDataFile(mapper, "deepCoadd_det_schema", patchDataId, create=False)
     mergeCoaddDetections.uses(inFile, link=peg.Link.INPUT)
+    for filterName in allExposures:
+        coaddId = dict(filter=filterName, **patchDataId)
+        inFile = getDataFile(mapper, "deepCoadd_det", coaddId, create=False)
+        mergeCoaddDetections.uses(inFile, link=peg.Link.INPUT)
 
-mergeCoaddDetections.addArguments(
-    outPath, "--output", outPath, " --doraise",
-    " --id " + patchId + " filter=" + '^'.join(allExposures.keys()))
-
-logMergeCoaddDetections = peg.File("logMergeCoaddDetections.%(tract)d-%(patch)s" % patchDataId)
-dax.addFile(logMergeCoaddDetections)
-mergeCoaddDetections.setStderr(logMergeCoaddDetections)
-mergeCoaddDetections.uses(logMergeCoaddDetections, link=peg.Link.OUTPUT)
-
-for outputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
-    outFile = getDataFile(mapper, outputType, patchDataId, create=True)
-    dax.addFile(outFile)
-    mergeCoaddDetections.uses(outFile, link=peg.Link.OUTPUT)
-
-dax.addJob(mergeCoaddDetections)
-
-
-# Pipeline: measureCoaddSources for each filter
-for filterName in allExposures:
-    measureCoaddSources = peg.Job(name="measureCoaddSources")
-    measureCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
-    measureCoaddSources.uses(registry, link=peg.Link.INPUT)
-    measureCoaddSources.uses(skyMap, link=peg.Link.INPUT)
-    for inputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
-        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
-        measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
-
-    coaddId = dict(filter=filterName, **patchDataId)
-    for inputType in ["deepCoadd_calexp"]:
-        inFile = getDataFile(mapper, inputType, coaddId, create=False)
-        measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
-
-    # src is used in the PropagateVisitFlagsTask subtask
-    for data in allData[filterName]:
-        measureCoaddSources.uses(srcDict[data.name], link=peg.Link.INPUT)
-
-    measureCoaddSources.addArguments(
+    mergeCoaddDetections.addArguments(
         outPath, "--output", outPath, " --doraise",
-        " --id " + patchId + " filter=" + filterName
-    )
-    logMeasureCoaddSources = peg.File("logMeasureCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
-    dax.addFile(logMeasureCoaddSources)
-    measureCoaddSources.setStderr(logMeasureCoaddSources)
-    measureCoaddSources.uses(logMeasureCoaddSources, link=peg.Link.OUTPUT)
+        " --id " + patchId + " filter=" + '^'.join(allExposures.keys()))
 
-    for outputType in ["deepCoadd_meas_schema", "deepCoadd_meas", "deepCoadd_srcMatch"]:
-        outFile = getDataFile(mapper, outputType, coaddId, create=True)
-        if not dax.hasFile(outFile):  # Only one deepCoadd_meas_schema (TODO)
-            dax.addFile(outFile)
-        measureCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
+    logMergeCoaddDetections = peg.File("logMergeCoaddDetections.%(tract)d-%(patch)s" % patchDataId)
+    dax.addFile(logMergeCoaddDetections)
+    mergeCoaddDetections.setStderr(logMergeCoaddDetections)
+    mergeCoaddDetections.uses(logMergeCoaddDetections, link=peg.Link.OUTPUT)
 
-    dax.addJob(measureCoaddSources)
+    for outputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
+        outFile = getDataFile(mapper, outputType, patchDataId, create=True)
+        dax.addFile(outFile)
+        mergeCoaddDetections.uses(outFile, link=peg.Link.OUTPUT)
 
+    dax.addJob(mergeCoaddDetections)
 
-# Pipeline: mergeCoaddMeasurements
-mergeCoaddMeasurements = peg.Job(name="mergeCoaddMeasurements")
-mergeCoaddMeasurements.uses(mapperFile, link=peg.Link.INPUT)
-inFile = getDataFile(mapper, "deepCoadd_meas_schema", patchDataId, create=False)
-mergeCoaddMeasurements.uses(inFile, link=peg.Link.INPUT)
-for filterName in allExposures:
-    coaddId = dict(filter=filterName, **patchDataId)
-    inFile = getDataFile(mapper, "deepCoadd_meas", coaddId, create=False)
+    # Pipeline: measureCoaddSources for each filter
+    for filterName in allExposures:
+        measureCoaddSources = peg.Job(name="measureCoaddSources")
+        measureCoaddSources.uses(mapperFile, link=peg.Link.INPUT)
+        measureCoaddSources.uses(registry, link=peg.Link.INPUT)
+        measureCoaddSources.uses(skyMap, link=peg.Link.INPUT)
+        for inputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
+            inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+            measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
+
+        coaddId = dict(filter=filterName, **patchDataId)
+        for inputType in ["deepCoadd_calexp"]:
+            inFile = getDataFile(mapper, inputType, coaddId, create=False)
+            measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
+
+        # src is used in the PropagateVisitFlagsTask subtask
+        for data in allData[filterName]:
+            measureCoaddSources.uses(srcDict[data.name], link=peg.Link.INPUT)
+
+        measureCoaddSources.addArguments(
+            outPath, "--output", outPath, " --doraise",
+            " --id " + patchId + " filter=" + filterName
+        )
+        logMeasureCoaddSources = peg.File("logMeasureCoaddSources.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        dax.addFile(logMeasureCoaddSources)
+        measureCoaddSources.setStderr(logMeasureCoaddSources)
+        measureCoaddSources.uses(logMeasureCoaddSources, link=peg.Link.OUTPUT)
+
+        for outputType in ["deepCoadd_meas_schema", "deepCoadd_meas", "deepCoadd_srcMatch"]:
+            outFile = getDataFile(mapper, outputType, coaddId, create=True)
+            if not dax.hasFile(outFile):  # Only one deepCoadd_meas_schema (TODO)
+                dax.addFile(outFile)
+            measureCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
+
+        dax.addJob(measureCoaddSources)
+
+    # Pipeline: mergeCoaddMeasurements
+    mergeCoaddMeasurements = peg.Job(name="mergeCoaddMeasurements")
+    mergeCoaddMeasurements.uses(mapperFile, link=peg.Link.INPUT)
+    inFile = getDataFile(mapper, "deepCoadd_meas_schema", patchDataId, create=False)
     mergeCoaddMeasurements.uses(inFile, link=peg.Link.INPUT)
+    for filterName in allExposures:
+        coaddId = dict(filter=filterName, **patchDataId)
+        inFile = getDataFile(mapper, "deepCoadd_meas", coaddId, create=False)
+        mergeCoaddMeasurements.uses(inFile, link=peg.Link.INPUT)
 
-mergeCoaddMeasurements.addArguments(
-    outPath, "--output", outPath, " --doraise",
-    " --id " + patchId + " filter=" + '^'.join(allExposures.keys())
-)
-
-logMergeCoaddMeasurements = peg.File("logMergeCoaddMeasurements.%(tract)d-%(patch)s" % patchDataId)
-dax.addFile(logMergeCoaddMeasurements)
-mergeCoaddMeasurements.setStderr(logMergeCoaddMeasurements)
-mergeCoaddMeasurements.uses(logMergeCoaddMeasurements, link=peg.Link.OUTPUT)
-
-for outputType in ["deepCoadd_ref", "deepCoadd_ref_schema"]:
-    outFile = getDataFile(mapper, outputType, patchDataId, create=True)
-    dax.addFile(outFile)
-    mergeCoaddMeasurements.uses(outFile, link=peg.Link.OUTPUT)
-
-dax.addJob(mergeCoaddMeasurements)
-
-
-# Pipeline: forcedPhotCoadd for each filter
-for filterName in allExposures:
-    forcedPhotCoadd = peg.Job(name="forcedPhotCoadd")
-    forcedPhotCoadd.uses(mapperFile, link=peg.Link.INPUT)
-    forcedPhotCoadd.uses(skyMap, link=peg.Link.INPUT)
-    for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
-        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
-        forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
-
-    coaddId = dict(filter=filterName, **patchDataId)
-    for inputType in ["deepCoadd_calexp", "deepCoadd_meas"]:
-        inFile = getDataFile(mapper, inputType, coaddId, create=False)
-        forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
-
-    forcedPhotCoadd.addArguments(
+    mergeCoaddMeasurements.addArguments(
         outPath, "--output", outPath, " --doraise",
-        " --id " + patchId + " filter=" + filterName
+        " --id " + patchId + " filter=" + '^'.join(allExposures.keys())
     )
 
-    logForcedPhotCoadd = peg.File("logForcedPhotCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
-    dax.addFile(logForcedPhotCoadd)
-    forcedPhotCoadd.setStderr(logForcedPhotCoadd)
-    forcedPhotCoadd.uses(logForcedPhotCoadd, link=peg.Link.OUTPUT)
+    logMergeCoaddMeasurements = peg.File("logMergeCoaddMeasurements.%(tract)d-%(patch)s" % patchDataId)
+    dax.addFile(logMergeCoaddMeasurements)
+    mergeCoaddMeasurements.setStderr(logMergeCoaddMeasurements)
+    mergeCoaddMeasurements.uses(logMergeCoaddMeasurements, link=peg.Link.OUTPUT)
 
-    for outputType in ["deepCoadd_forced_src_schema",  "deepCoadd_forced_src" ]:
-        outFile = getDataFile(mapper, outputType, coaddId, create=True)
-        if not dax.hasFile(outFile):  # Only one deepCoadd_forced_src_schema (TODO)
-            dax.addFile(outFile)
-        forcedPhotCoadd.uses(outFile, link=peg.Link.OUTPUT)
+    for outputType in ["deepCoadd_ref", "deepCoadd_ref_schema"]:
+        outFile = getDataFile(mapper, outputType, patchDataId, create=True)
+        dax.addFile(outFile)
+        mergeCoaddMeasurements.uses(outFile, link=peg.Link.OUTPUT)
 
-    dax.addJob(forcedPhotCoadd)
+    dax.addJob(mergeCoaddMeasurements)
+
+    # Pipeline: forcedPhotCoadd for each filter
+    for filterName in allExposures:
+        forcedPhotCoadd = peg.Job(name="forcedPhotCoadd")
+        forcedPhotCoadd.uses(mapperFile, link=peg.Link.INPUT)
+        forcedPhotCoadd.uses(skyMap, link=peg.Link.INPUT)
+        for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
+            inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+            forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
+
+        coaddId = dict(filter=filterName, **patchDataId)
+        for inputType in ["deepCoadd_calexp", "deepCoadd_meas"]:
+            inFile = getDataFile(mapper, inputType, coaddId, create=False)
+            forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
+
+        forcedPhotCoadd.addArguments(
+            outPath, "--output", outPath, " --doraise",
+            " --id " + patchId + " filter=" + filterName
+        )
+
+        logForcedPhotCoadd = peg.File("logForcedPhotCoadd.%(tract)d-%(patch)s-%(filter)s" % coaddId)
+        dax.addFile(logForcedPhotCoadd)
+        forcedPhotCoadd.setStderr(logForcedPhotCoadd)
+        forcedPhotCoadd.uses(logForcedPhotCoadd, link=peg.Link.OUTPUT)
+
+        for outputType in ["deepCoadd_forced_src_schema",  "deepCoadd_forced_src" ]:
+            outFile = getDataFile(mapper, outputType, coaddId, create=True)
+            if not dax.hasFile(outFile):  # Only one deepCoadd_forced_src_schema (TODO)
+                dax.addFile(outFile)
+            forcedPhotCoadd.uses(outFile, link=peg.Link.OUTPUT)
+
+        dax.addJob(forcedPhotCoadd)
+
+    # Pipeline: forcedPhotCcd for each ccd
+    #
+    # Get the config file forcedPhotCcdConfig.py from ci_hsc package
+    filePath = os.path.join(ciHscDir, "forcedPhotCcdConfig.py")
+    forcedPhotCcdConfig = peg.File("forcedPhotCcdConfig.py")
+    forcedPhotCcdConfig.addPFN(peg.PFN(filePath, site="local"))
+    dax.addFile(forcedPhotCcdConfig)
+
+    for data in sum(allData.itervalues(), []):
+        forcedPhotCcd = peg.Job(name="forcedPhotCcd")
+        forcedPhotCcd.uses(mapperFile, link=peg.Link.INPUT)
+        forcedPhotCcd.uses(registry, link=peg.Link.INPUT)
+        forcedPhotCcd.uses(skyMap, link=peg.Link.INPUT)
+        forcedPhotCcd.uses(calexpDict[data.name], link=peg.Link.INPUT)
+        for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
+            inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+            forcedPhotCcd.uses(inFile, link=peg.Link.INPUT)
+
+        forcedPhotCcd.uses(forcedPhotCcdConfig, link=peg.Link.INPUT)
+        forcedPhotCcd.addArguments(outPath, "--output", outPath, " --doraise",
+                                   "-C", forcedPhotCcdConfig, data.id(tract=0))
+        logger.debug("forcedPhotCcd with %s", data.id(tract=0))
+
+        logForcedPhotCcd = peg.File("logForcedPhotCcd.%s" % data.name)
+        dax.addFile(logForcedPhotCcd)
+        forcedPhotCcd.setStderr(logForcedPhotCcd)
+        forcedPhotCcd.uses(logForcedPhotCcd, link=peg.Link.OUTPUT)
+
+        for outputType in ["forced_src", "forced_src_schema"]:
+            dataId = dict(tract=0, **data.dataId)
+            outFile = getDataFile(mapper, outputType, dataId, create=True)
+            if not dax.hasFile(outFile):  # Only one forced_src_schema (TODO)
+                dax.addFile(outFile)
+            forcedPhotCcd.uses(outFile, link=peg.Link.OUTPUT)
+
+        dax.addJob(forcedPhotCcd)
+
+    return dax
 
 
-# Pipeline: forcedPhotCcd for each ccd
-#
-# Get the config file forcedPhotCcdConfig.py from ci_hsc package
-filePath = os.path.join(ciHscDir, "forcedPhotCcdConfig.py")
-forcedPhotCcdConfig = peg.File("forcedPhotCcdConfig.py")
-forcedPhotCcdConfig.addPFN(peg.PFN(filePath, site="local"))
-dax.addFile(forcedPhotCcdConfig)
-
-for data in sum(allData.itervalues(), []):
-    forcedPhotCcd = peg.Job(name="forcedPhotCcd")
-    forcedPhotCcd.uses(mapperFile, link=peg.Link.INPUT)
-    forcedPhotCcd.uses(registry, link=peg.Link.INPUT)
-    forcedPhotCcd.uses(skyMap, link=peg.Link.INPUT)
-    forcedPhotCcd.uses(calexpDict[data.name], link=peg.Link.INPUT)
-    for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
-        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
-        forcedPhotCcd.uses(inFile, link=peg.Link.INPUT)
-
-    forcedPhotCcd.uses(forcedPhotCcdConfig, link=peg.Link.INPUT)
-    forcedPhotCcd.addArguments(outPath, "--output", outPath, " --doraise",
-                               "-C", forcedPhotCcdConfig, data.id(tract=0))
-    logger.debug("forcedPhotCcd with %s", data.id(tract=0))
-
-    logForcedPhotCcd = peg.File("logForcedPhotCcd.%s" % data.name)
-    dax.addFile(logForcedPhotCcd)
-    forcedPhotCcd.setStderr(logForcedPhotCcd)
-    forcedPhotCcd.uses(logForcedPhotCcd, link=peg.Link.OUTPUT)
-
-    for outputType in ["forced_src", "forced_src_schema"]:
-        dataId = dict(tract=0, **data.dataId)
-        outFile = getDataFile(mapper, outputType, dataId, create=True)
-        if not dax.hasFile(outFile):  # Only one forced_src_schema (TODO)
-            dax.addFile(outFile)
-        forcedPhotCcd.uses(outFile, link=peg.Link.OUTPUT)
-
-    dax.addJob(forcedPhotCcd)
-
-
-f = open("ciHsc.dax", "w")
-dax.writeXML(f)
-f.close()
+if __name__ == "__main__":
+    dax = generateDax("CiHscDax")
+    f = open("ciHsc.dax", "w")
+    dax.writeXML(f)
+    f.close()
