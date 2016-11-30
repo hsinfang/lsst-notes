@@ -23,6 +23,50 @@ ciHscDir = lsst.utils.getPackageDir('ci_hsc')
 inputRepo = os.path.join(ciHscDir, "DATA")
 calibRepo = os.path.join(inputRepo, "CALIB")
 
+def getDataFile(mapper, datasetType, dataId, create=False, replaceRootPath=None):
+    """Get the Pegasus File entry given Butler datasetType and dataId.
+
+    Retrieve the file name/path through a CameraMapper instance
+    Optionally tweak the path to a better LFN using replaceRootPath
+    Optionally create new Pegasus File entries
+
+    Parameters
+    ----------
+    mapper: lsst.obs.base.CameraMapper
+        A specific CameraMapper instance for getting the name and locating
+        the file in a Butler repo.
+
+    datasetType: `str`
+        Butler dataset type
+
+    dataId: `dict`
+        Butler data ID
+
+    create: `bool`, optional
+        If True, create a new Pegasus File entry if it does not exist yet.
+
+    replaceRootPath: `str`, optional
+        Replace the given root path with the global outPath.
+
+    Returns
+    -------
+    fileEntry:
+        A Pegasus File entry or a LFN corresponding to an entry
+    """
+    mapFunc = getattr(mapper, "map_" + datasetType)
+    fileEntry = lfn = filePath = mapFunc(dataId).getLocations()[0]
+
+    if replaceRootPath is not None:
+        lfn = filePath.replace(replaceRootPath, outPath)
+
+    if create:
+        fileEntry = peg.File(lfn)
+        fileEntry.addPFN(peg.PFN(filePath, site="local"))
+        logger.debug("%s %s: %s -> %s", datasetType, dataId, filePath, lfn)
+
+    return fileEntry
+
+
 # Construct these butler and mappers only for creating dax, not for actual runs.
 inputArgs = dafPersist.RepositoryArgs(mode='r', mapper=HscMapper, root=inputRepo)  # read-only input
 outputArgs = dafPersist.RepositoryArgs(mode='w', mapper=HscMapper, root=outPath)  # write-only output
@@ -63,37 +107,24 @@ for data in sum(allData.itervalues(), []):
     processCcd.uses(calibRegistry, link=peg.Link.INPUT)
     processCcd.uses(mapperFile, link=peg.Link.INPUT)
 
-    filePath = mapperInput.map_raw(data.dataId).getLocations()[0]
-    lfn = filePath.replace(inputRepo, outPath)
-    infile = peg.File(lfn)
-    infile.addPFN(peg.PFN(filePath, site="local"))
-    logger.debug("%s: input: %s -> %s", data.name, filePath, lfn)
-    dax.addFile(infile)
-    processCcd.uses(infile, link=peg.Link.INPUT)
+    inFile = getDataFile(mapperInput, "raw", data.dataId, create=True, replaceRootPath=inputRepo)
+    dax.addFile(inFile)
+    processCcd.uses(inFile, link=peg.Link.INPUT)
     for inputType in ["bias", "dark", "flat", "bfKernel"]:
-        mapFunc = getattr(mapperInput, "map_"+inputType)
-        filePath = mapFunc(data.dataId).getLocations()[0]
-        lfn = filePath.replace(calibRepo, outPath)
-        infile = peg.File(lfn)
-        infile.addPFN(peg.PFN(filePath, site="local"))
-        logger.debug("%s: input: %s -> %s", data.name, filePath, lfn)
-        if not dax.hasFile(infile):
-            dax.addFile(infile)
-        processCcd.uses(infile, link=peg.Link.INPUT)
+        inFile = getDataFile(mapperInput, inputType, data.dataId, create=True, replaceRootPath=calibRepo)
+        if not dax.hasFile(inFile):
+            dax.addFile(inFile)
+        processCcd.uses(inFile, link=peg.Link.INPUT)
 
-    filePathCalexp = mapper.map_calexp(data.dataId).getLocations()[0]
-    calexp = peg.File(filePathCalexp)
-    calexp.addPFN(peg.PFN(filePathCalexp, site="local"))
-    dax.addFile(calexp)
-    logger.debug("dataId %s output filePathCalexp: %s", data.name, filePathCalexp)
-    processCcd.uses(calexp, link=peg.Link.OUTPUT)
+    outFile = getDataFile(mapper, "calexp", data.dataId, create=True)
+    dax.addFile(outFile)
+    processCcd.uses(outFile, link=peg.Link.OUTPUT)
+    calexpDict[data.name] = outFile
 
-    filePathSrc = mapper.map_src(data.dataId).getLocations()[0]
-    src = peg.File(filePathSrc)
-    src.addPFN(peg.PFN(filePathSrc, site="local"))
-    dax.addFile(src)
-    logger.debug("dataId %s output filePathSrc: %s", data.name, filePathSrc)
-    processCcd.uses(src, link=peg.Link.OUTPUT)
+    outFile = getDataFile(mapper, "src", data.dataId, create=True)
+    dax.addFile(outFile)
+    processCcd.uses(outFile, link=peg.Link.OUTPUT)
+    srcDict[data.name] = outFile
 
     logProcessCcd = peg.File("logProcessCcd.%s" % data.name)
     dax.addFile(logProcessCcd)
@@ -101,9 +132,6 @@ for data in sum(allData.itervalues(), []):
     processCcd.uses(logProcessCcd, link=peg.Link.OUTPUT)
 
     dax.addJob(processCcd)
-
-    calexpDict[data.name] = calexp
-    srcDict[data.name] = src
     tasksProcessCcdList.append(processCcd)
 
 # Pipeline: makeSkyMap
@@ -123,11 +151,8 @@ dax.addFile(logMakeSkyMap)
 makeSkyMap.setStderr(logMakeSkyMap)
 makeSkyMap.uses(logMakeSkyMap, link=peg.Link.OUTPUT)
 
-filePathSkyMap = mapper.map_deepCoadd_skyMap({}).getLocations()[0]
-skyMap = peg.File(filePathSkyMap)
-skyMap.addPFN(peg.PFN(filePathSkyMap, site="local"))
+skyMap = getDataFile(mapper, "deepCoadd_skyMap", {}, create=True)
 dax.addFile(skyMap)
-logger.debug("filePathSkyMap: %s", filePathSkyMap)
 makeSkyMap.uses(skyMap, link=peg.Link.OUTPUT)
 
 dax.addJob(makeSkyMap)
@@ -160,11 +185,8 @@ for filterName in allExposures:
         makeCoaddTempExp.setStderr(logMakeCoaddTempExp)
         makeCoaddTempExp.uses(logMakeCoaddTempExp, link=peg.Link.OUTPUT)
 
-        lfn = mapper.map_deepCoadd_tempExp(coaddTempExpId).getLocations()[0]
-        deepCoadd_tempExp = peg.File(lfn)
-        deepCoadd_tempExp.addPFN(peg.PFN(lfn, site="local"))
+        deepCoadd_tempExp = getDataFile(mapper, "deepCoadd_tempExp", coaddTempExpId, create=True)
         dax.addFile(deepCoadd_tempExp)
-        logger.debug("coaddTempExp %s: output %s", coaddTempExpId, lfn)
         makeCoaddTempExp.uses(deepCoadd_tempExp, link=peg.Link.OUTPUT)
         coaddTempExpList.append(deepCoadd_tempExp)
 
@@ -197,11 +219,8 @@ for filterName in allExposures:
     assembleCoadd.setStderr(logAssembleCoadd)
     assembleCoadd.uses(logAssembleCoadd, link=peg.Link.OUTPUT)
 
-    lfn = mapper.map_deepCoadd(coaddId).getLocations()[0]
-    coadd = peg.File(lfn)
-    coadd.addPFN(peg.PFN(lfn, site="local"))
+    coadd = getDataFile(mapper, "deepCoadd", coaddId, create=True)
     dax.addFile(coadd)
-    logger.debug("assembleCoadd %s: output %s", coaddId, lfn)
     assembleCoadd.uses(coadd, link=peg.Link.OUTPUT)
     dax.addJob(assembleCoadd)
 
@@ -217,11 +236,7 @@ for filterName in allExposures:
     detectCoaddSources.uses(logDetectCoaddSources, link=peg.Link.OUTPUT)
 
     for outputType in ["deepCoadd_calexp", "deepCoadd_calexp_background", "deepCoadd_det", "deepCoadd_det_schema"]:
-        mapFunc = getattr(mapper, "map_" + outputType)
-        lfn = mapFunc(coaddId).getLocations()[0]
-        outFile = peg.File(lfn)
-        outFile.addPFN(peg.PFN(lfn, site="local"))
-        logger.debug("detectCoaddSources %s: output %s", coaddId, outFile)
+        outFile = getDataFile(mapper, outputType, coaddId, create=True)
         if not dax.hasFile(outFile):  # Only one deepCoadd_det_schema (TODO)
             dax.addFile(outFile)
         detectCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
@@ -233,12 +248,12 @@ for filterName in allExposures:
 mergeCoaddDetections = peg.Job(name="mergeCoaddDetections")
 mergeCoaddDetections.uses(mapperFile, link=peg.Link.INPUT)
 mergeCoaddDetections.uses(skyMap, link=peg.Link.INPUT)
-lfn = mapper.map_deepCoadd_det_schema(patchDataId).getLocations()[0]
-mergeCoaddDetections.uses(lfn, link=peg.Link.INPUT)
+inFile = getDataFile(mapper, "deepCoadd_det_schema", patchDataId, create=False)
+mergeCoaddDetections.uses(inFile, link=peg.Link.INPUT)
 for filterName in allExposures:
     coaddId = dict(filter=filterName, **patchDataId)
-    lfn = mapper.map_deepCoadd_det(coaddId).getLocations()[0]
-    mergeCoaddDetections.uses(lfn, link=peg.Link.INPUT)
+    inFile = getDataFile(mapper, "deepCoadd_det", coaddId, create=False)
+    mergeCoaddDetections.uses(inFile, link=peg.Link.INPUT)
 
 mergeCoaddDetections.addArguments(
     outPath, "--output", outPath, " --doraise",
@@ -250,11 +265,7 @@ mergeCoaddDetections.setStderr(logMergeCoaddDetections)
 mergeCoaddDetections.uses(logMergeCoaddDetections, link=peg.Link.OUTPUT)
 
 for outputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
-    mapFunc = getattr(mapper, "map_" + outputType)
-    lfn = mapFunc(patchDataId).getLocations()[0]
-    outFile = peg.File(lfn)
-    outFile.addPFN(peg.PFN(lfn, site="local"))
-    logger.debug("mergeCoaddDetections %s: output %s", patchId, outFile)
+    outFile = getDataFile(mapper, outputType, patchDataId, create=True)
     dax.addFile(outFile)
     mergeCoaddDetections.uses(outFile, link=peg.Link.OUTPUT)
 
@@ -268,15 +279,13 @@ for filterName in allExposures:
     measureCoaddSources.uses(registry, link=peg.Link.INPUT)
     measureCoaddSources.uses(skyMap, link=peg.Link.INPUT)
     for inputType in ["deepCoadd_mergeDet", "deepCoadd_mergeDet_schema", "deepCoadd_peak_schema"]:
-        mapFunc = getattr(mapper, "map_" + inputType)
-        lfn = mapFunc(patchDataId).getLocations()[0]
-        measureCoaddSources.uses(lfn, link=peg.Link.INPUT)
+        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+        measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
 
     coaddId = dict(filter=filterName, **patchDataId)
     for inputType in ["deepCoadd_calexp"]:
-        mapFunc = getattr(mapper, "map_" + inputType)
-        lfn = mapFunc(coaddId).getLocations()[0]
-        measureCoaddSources.uses(lfn, link=peg.Link.INPUT)
+        inFile = getDataFile(mapper, inputType, coaddId, create=False)
+        measureCoaddSources.uses(inFile, link=peg.Link.INPUT)
 
     # src is used in the PropagateVisitFlagsTask subtask
     for data in allData[filterName]:
@@ -292,11 +301,7 @@ for filterName in allExposures:
     measureCoaddSources.uses(logMeasureCoaddSources, link=peg.Link.OUTPUT)
 
     for outputType in ["deepCoadd_meas_schema", "deepCoadd_meas", "deepCoadd_srcMatch"]:
-        mapFunc = getattr(mapper, "map_" + outputType)
-        lfn = mapFunc(coaddId).getLocations()[0]
-        outFile = peg.File(lfn)
-        outFile.addPFN(peg.PFN(lfn, site="local"))
-        logger.debug("measureCoaddSources %s: output %s", coaddId, outFile)
+        outFile = getDataFile(mapper, outputType, coaddId, create=True)
         if not dax.hasFile(outFile):  # Only one deepCoadd_meas_schema (TODO)
             dax.addFile(outFile)
         measureCoaddSources.uses(outFile, link=peg.Link.OUTPUT)
@@ -307,12 +312,12 @@ for filterName in allExposures:
 # Pipeline: mergeCoaddMeasurements
 mergeCoaddMeasurements = peg.Job(name="mergeCoaddMeasurements")
 mergeCoaddMeasurements.uses(mapperFile, link=peg.Link.INPUT)
-lfn = mapper.map_deepCoadd_meas_schema(patchDataId).getLocations()[0]
-mergeCoaddMeasurements.uses(lfn, link=peg.Link.INPUT)
+inFile = getDataFile(mapper, "deepCoadd_meas_schema", patchDataId, create=False)
+mergeCoaddMeasurements.uses(inFile, link=peg.Link.INPUT)
 for filterName in allExposures:
     coaddId = dict(filter=filterName, **patchDataId)
-    lfn = mapper.map_deepCoadd_meas(coaddId).getLocations()[0]
-    mergeCoaddMeasurements.uses(lfn, link=peg.Link.INPUT)
+    inFile = getDataFile(mapper, "deepCoadd_meas", coaddId, create=False)
+    mergeCoaddMeasurements.uses(inFile, link=peg.Link.INPUT)
 
 mergeCoaddMeasurements.addArguments(
     outPath, "--output", outPath, " --doraise",
@@ -325,11 +330,7 @@ mergeCoaddMeasurements.setStderr(logMergeCoaddMeasurements)
 mergeCoaddMeasurements.uses(logMergeCoaddMeasurements, link=peg.Link.OUTPUT)
 
 for outputType in ["deepCoadd_ref", "deepCoadd_ref_schema"]:
-    mapFunc = getattr(mapper, "map_" + outputType)
-    lfn = mapFunc(patchDataId).getLocations()[0]
-    outFile = peg.File(lfn)
-    outFile.addPFN(peg.PFN(lfn, site="local"))
-    logger.debug("mergeCoaddMeasurements %s: output %s", patchId, outFile)
+    outFile = getDataFile(mapper, outputType, patchDataId, create=True)
     dax.addFile(outFile)
     mergeCoaddMeasurements.uses(outFile, link=peg.Link.OUTPUT)
 
@@ -342,16 +343,13 @@ for filterName in allExposures:
     forcedPhotCoadd.uses(mapperFile, link=peg.Link.INPUT)
     forcedPhotCoadd.uses(skyMap, link=peg.Link.INPUT)
     for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
-        mapFunc = getattr(mapper, "map_" + inputType)
-        lfn = mapFunc(patchDataId).getLocations()[0]
-        logger.debug("forcedPhotCoadd input: %s", lfn)
-        forcedPhotCoadd.uses(lfn, link=peg.Link.INPUT)
+        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+        forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
 
     coaddId = dict(filter=filterName, **patchDataId)
     for inputType in ["deepCoadd_calexp", "deepCoadd_meas"]:
-        mapFunc = getattr(mapper, "map_" + inputType)
-        lfn = mapFunc(coaddId).getLocations()[0]
-        forcedPhotCoadd.uses(lfn, link=peg.Link.INPUT)
+        inFile = getDataFile(mapper, inputType, coaddId, create=False)
+        forcedPhotCoadd.uses(inFile, link=peg.Link.INPUT)
 
     forcedPhotCoadd.addArguments(
         outPath, "--output", outPath, " --doraise",
@@ -364,11 +362,7 @@ for filterName in allExposures:
     forcedPhotCoadd.uses(logForcedPhotCoadd, link=peg.Link.OUTPUT)
 
     for outputType in ["deepCoadd_forced_src_schema",  "deepCoadd_forced_src" ]:
-        mapFunc = getattr(mapper, "map_" + outputType)
-        lfn = mapFunc(coaddId).getLocations()[0]
-        outFile = peg.File(lfn)
-        outFile.addPFN(peg.PFN(lfn, site="local"))
-        logger.debug("forcedPhotCoadd %s: output %s", coaddId, outFile)
+        outFile = getDataFile(mapper, outputType, coaddId, create=True)
         if not dax.hasFile(outFile):  # Only one deepCoadd_forced_src_schema (TODO)
             dax.addFile(outFile)
         forcedPhotCoadd.uses(outFile, link=peg.Link.OUTPUT)
@@ -391,9 +385,8 @@ for data in sum(allData.itervalues(), []):
     forcedPhotCcd.uses(skyMap, link=peg.Link.INPUT)
     forcedPhotCcd.uses(calexpDict[data.name], link=peg.Link.INPUT)
     for inputType in ["deepCoadd_ref_schema", "deepCoadd_ref"]:
-        mapFunc = getattr(mapper, "map_" + inputType)
-        lfn = mapFunc(patchDataId).getLocations()[0]
-        forcedPhotCcd.uses(lfn, link=peg.Link.INPUT)
+        inFile = getDataFile(mapper, inputType, patchDataId, create=False)
+        forcedPhotCcd.uses(inFile, link=peg.Link.INPUT)
 
     forcedPhotCcd.uses(forcedPhotCcdConfig, link=peg.Link.INPUT)
     forcedPhotCcd.addArguments(outPath, "--output", outPath, " --doraise",
@@ -407,11 +400,7 @@ for data in sum(allData.itervalues(), []):
 
     for outputType in ["forced_src", "forced_src_schema"]:
         dataId = dict(tract=0, **data.dataId)
-        mapFunc = getattr(mapper, "map_" + outputType)
-        lfn = mapFunc(dataId).getLocations()[0]
-        outFile = peg.File(lfn)
-        outFile.addPFN(peg.PFN(lfn, site="local"))
-        logger.debug("forcedPhotCcd %s: output %s", coaddId, outFile)
+        outFile = getDataFile(mapper, outputType, dataId, create=True)
         if not dax.hasFile(outFile):  # Only one forced_src_schema (TODO)
             dax.addFile(outFile)
         forcedPhotCcd.uses(outFile, link=peg.Link.OUTPUT)
