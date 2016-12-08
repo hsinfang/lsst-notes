@@ -5,12 +5,12 @@
     <!-- The local site contains information about the submit host -->
     <site handle="local" arch="x86_64" os="LINUX">
         <!-- This is where intermediate data will be stored -->
-        <directory type="shared-scratch" path="/home/centos/scratch/">
-            <file-server operation="all" url="file:///home/centos/scratch/"/>
+        <directory type="shared-scratch" path="${HOME}/scratch/">
+            <file-server operation="all" url="file://${HOME}/scratch/"/>
         </directory>
         <!-- This is where output data will be stored -->
-        <directory type="shared-storage" path="/home/centos/storage/">
-            <file-server operation="all" url="file:///home/centos/storage"/>
+        <directory type="shared-storage" path="${HOME}/storage/">
+            <file-server operation="all" url="file://${HOME}/storage"/>
         </directory>
 
         <profile namespace="condor" key="getEnv">True</profile>
