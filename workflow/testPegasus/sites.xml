@@ -13,4 +13,10 @@
             <file-server operation="all" url="file://${HOME}/storage"/>
         </directory>
     </site>
+
+    <site handle="lsstvc" arch="x86_64" os="linux">
+        <profile namespace="pegasus" key="style" >condor</profile>
+        <profile namespace="condor" key="universe" >vanilla</profile>
+    </site>
+
 </sitecatalog>
