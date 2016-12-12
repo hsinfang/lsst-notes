@@ -18,7 +18,7 @@ pegasus-plan \
     -Dpegasus.catalog.site.file=sites.xml \
     -Dpegasus.catalog.transformation.file=tc.txt \
     -Dpegasus.register=false \
-    --sites local -o local \
+    -Dpegasus.data.configuration=sharedfs \
     --input-dir $DIR/input \
     --output-dir $DIR/output \
     --dir $DIR/submit \

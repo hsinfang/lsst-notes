@@ -15,4 +15,16 @@
 
         <profile namespace="condor" key="getEnv">True</profile> 
     </site>
+
+    <site handle="lsstvc" arch="x86_64" os="linux">
+        <directory type="shared-scratch" path="/scratch/${USER}/pegasus/scratch/">
+            <file-server operation="all" url="file:///scratch/${USER}/pegasus/scratch/"/>
+        </directory>
+        <profile namespace="pegasus" key="style" >condor</profile>
+        <profile namespace="condor" key="universe" >vanilla</profile>
+        <profile namespace="condor" key="getEnv">True</profile>
+        <profile namespace="env" key="PEGASUS_HOME" >/software/daues/pegasus/pegasus-4.7.2-1/usr</profile>
+        <!-- set if the compute site filesystem is accessible locally on the submit host -->
+        <profile namespace="pegasus" key="auxillary.local">true</profile>
+    </site>
 </sitecatalog>
