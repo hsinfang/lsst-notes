@@ -17,6 +17,7 @@
     <site handle="lsstvc" arch="x86_64" os="linux">
         <profile namespace="pegasus" key="style" >condor</profile>
         <profile namespace="condor" key="universe" >vanilla</profile>
+        <profile namespace="condor" key="requirements">(NODE_SET == &quot;${NODESET}&quot;)</profile>
     </site>
 
 </sitecatalog>
