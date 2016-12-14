@@ -18,7 +18,7 @@ hello.setStdout(b)
 hello.uses(b, link=peg.Link.OUTPUT)
 dax.addJob(hello)
 
-world = peg.Job("hello")
+world = peg.Job("world")
 c = peg.File("f.c")
 world.uses(b, link=peg.Link.INPUT)
 world.addArguments(b)
