@@ -1,17 +1,17 @@
 tr hello {
     site local {
-        pfn "/home/centos/lsst-notes/workflow/testPegasusStack/hello.sh"
+        pfn "file://${WORKFLOW_HOME}/workflow/testPegasusStack/hello.sh"
         arch "x86_64"
         os "linux"
-        type "INSTALLED"
+        type "STAGEABLE"
     }
 }
 
 tr world {
     site local {
-        pfn "/home/centos/lsst-notes/workflow/testPegasusStack/world.py"
+        pfn "file://${WORKFLOW_HOME}/workflow/testPegasusStack/world.py"
         arch "x86_64"
         os "linux"
-        type "INSTALLED"
+        type "STAGEABLE"
     }
 }

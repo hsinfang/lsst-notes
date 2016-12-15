@@ -16,4 +16,18 @@
         <!-- Copy all env var to use the LSST Stack -->
         <profile namespace="condor" key="getEnv">True</profile>
     </site>
+
+    <!-- compute site -->
+    <site  handle="lsstvc" arch="x86_64" os="LINUX">
+        <directory type="shared-scratch" path="/scratch/${USER}/pegasus/scratch/">
+            <file-server operation="all" url="file:///scratch/${USER}/pegasus/scratch/"/>
+        </directory>
+        <profile namespace="pegasus" key="style" >condor</profile>
+        <profile namespace="condor" key="universe" >vanilla</profile>
+        <profile namespace="condor" key="getEnv">True</profile>
+        <profile namespace="condor" key="should_transfer_files">IF_NEEDED</profile>
+        <profile namespace="env" key="PEGASUS_HOME" >/software/daues/pegasus/pegasus-4.7.2-1/usr</profile>
+        <profile namespace="condor" key="requirements">(TARGET.ALLOCATED_NODE_SET == &quot;${NODESET}&quot;)</profile>
+        <profile namespace="condor" key="+JOB_NODE_SET">&quot;${NODESET}&quot;</profile>
+    </site>
 </sitecatalog>

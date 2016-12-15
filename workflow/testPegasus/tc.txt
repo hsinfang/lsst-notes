@@ -1,5 +1,5 @@
 tr world {
-    site local {
+    site lsstvc {
         pfn "/usr/bin/cat"
         arch "x86_64"
         os "linux"
@@ -8,7 +8,7 @@ tr world {
 }
 
 tr hello {
-    site local {
+    site lsstvc {
         pfn "/usr/bin/cat"
         arch "x86_64"
         os "linux"

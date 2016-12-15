@@ -1,6 +1,6 @@
 
 tr activator {
-    site local {
+    site lsstvc {
         pfn "${PIPE_SUPERTASK_DIR}/bin/cmdLineActivator"
         arch "x86_64"
         os "linux"
@@ -8,7 +8,7 @@ tr activator {
     }
 }
 tr hello {
-    site local {
+    site lsstvc {
         pfn "/usr/bin/cat"
         arch "x86"
         os "linux"

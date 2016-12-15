@@ -18,7 +18,7 @@ DAXFILE=$1
 pegasus-plan \
     -Dpegasus.catalog.site.file=sites.xml \
     -Dpegasus.catalog.transformation.file=tc.txt \
-    --sites local \
+    -Dpegasus.data.configuration=sharedfs \
     --output-dir $DIR/output \
     --dir $DIR/submit \
     --dax $DAXFILE \
