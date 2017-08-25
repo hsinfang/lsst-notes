@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import os
 import sqlite3
 import lsst.utils
@@ -6,16 +7,22 @@ import lsst.daf.persistence as dafPersist
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 
-repo = "/project/hsc_rc/w_2017_32/DM-11186/"
-butler = dafPersist.Butler(repo)
 
-#with open('/home/hchiang2/slurm-test/visitsLaurenRcCosmos.txt') as f:
-with open('/home/hchiang2/slurm-test/visitsLaurenRcWide.txt') as f:
+parser = argparse.ArgumentParser(description='Build a sqlite3 with patches overlapped by calexps')
+parser.add_argument("repo", type=str,
+                    help="a Butler repo root path")
+parser.add_argument("-i", "--input", type=str, default="visitsTest.txt",
+                    help='a file containing a list of visit IDs')
+parser.add_argument("-o", "--output", type=str, default="overlaps.sqlite3",
+                    help="file name for the output sqlite3")
+args = parser.parse_args()
+
+butler = dafPersist.Butler(args.repo)
+
+with open(args.input) as f:
     visits = f.read().splitlines()
 
-#conn = sqlite3.connect('overlaps_RCCOSMOS_w32.sqlite3')
-conn = sqlite3.connect('overlaps_RCWIDE_w32.sqlite3')
-
+conn = sqlite3.connect(args.output)
 cur = conn.cursor()
 # Create one table for each datasetType
 tables = ["calexp", ]
