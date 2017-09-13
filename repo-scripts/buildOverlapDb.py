@@ -6,6 +6,7 @@ import lsst.utils
 import lsst.daf.persistence as dafPersist
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
+from lsst.geom import convexHull
 
 
 parser = argparse.ArgumentParser(description='Build a sqlite3 with patches overlapped by calexps')
@@ -59,13 +60,26 @@ for visitStr in visits:
                 ctrRa = imageCenter.getRa().asDegrees()
                 ctrDec = imageCenter.getDec().asDegrees()
                 # c.f. # skymap[9010].getCtrCoord().toFk5()
+                imagePoly = convexHull([coord.getVector() for coord in imageCorners])
 
                 tractPatchList =  skymap.findTractPatchList(imageCorners)
                 for tractInfo, patchInfoList in tractPatchList:
+                    tractWcs = tractInfo.getWcs()
                     for patchInfo in patchInfoList:
                         patchId = '%d,%d' % patchInfo.getIndex()
+                        patchOuterBox = afwGeom.Box2D(
+                            afwGeom.Point2D(patchInfo.getOuterBBox().getMin()),
+                            afwGeom.Extent2D(patchInfo.getOuterBBox().getDimensions())
+                        )
+                        patchOuterCorners = [tractWcs.pixelToSky(pix) for pix in patchOuterBox.getCorners()]
+                        patchOuterPoly = convexHull([coord.getVector() for coord in patchOuterCorners])
+                        overlap = patchOuterPoly.intersects(imagePoly)
+
                         cmd = "insert into %s (visit, ccd, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, ccd, exist, tractInfo.getId(), patchId, ctrRa, ctrDec, filterName)
-                        conn.execute(cmd)
+                        if overlap:
+                            conn.execute(cmd)
+                        else:
+                            print "Edge case discrepancy betw ringSkyMap.findTractPatchList and convexHull select: %s " % (cmd)
 
             else:
                 cmd = "insert into %s (visit, ccd, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, ccd, exist, -1, None, -999, -999, None)
