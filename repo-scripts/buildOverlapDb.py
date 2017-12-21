@@ -46,7 +46,7 @@ for visitStr in visits:
                 exist = butler.datasetExists(table, visit=visit, ccd=ccd)
             except dafPersist.butlerExceptions.NoResults:
                 # likely those dataId are not included in the root registry
-                print "butler NoResults %s %s %s" % (table, visit, ccd)
+                print('butler NoResults {} {} {}'.format(table, visit, ccd))
                 continue
 
             if exist:
@@ -79,7 +79,7 @@ for visitStr in visits:
                         if overlap:
                             conn.execute(cmd)
                         else:
-                            print "Edge case discrepancy betw ringSkyMap.findTractPatchList and convexHull select: %s " % (cmd)
+                            print('Edge case discrepancy betw ringSkyMap.findTractPatchList and convexHull select: {}'.format(cmd))
 
             else:
                 cmd = "insert into %s (visit, ccd, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, ccd, exist, -1, None, -999, -999, None)
