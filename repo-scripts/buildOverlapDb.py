@@ -53,8 +53,7 @@ for visitStr in visits:
                 filterName = butler.queryMetadata(datasetType='raw', format=("filter",), dataId={'visit':visit})[0]
                 md = butler.get("calexp_md", visit=visit, ccd=ccd)
                 wcs = afwImage.makeWcs(md)
-                nx, ny = md.get("NAXIS1"), md.get("NAXIS2")
-                imageBox = afwGeom.Box2D(afwGeom.Point2D(0, 0), afwGeom.Extent2D(nx, ny))
+                imageBox = afwGeom.Box2D(afwImage.bboxFromMetadata(md))
                 imageCorners = [wcs.pixelToSky(pix) for pix in imageBox.getCorners()]
                 imageCenter = wcs.pixelToSky(imageBox.getCenter())
                 ctrRa = imageCenter.getRa().asDegrees()
