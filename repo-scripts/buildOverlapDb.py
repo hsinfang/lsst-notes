@@ -52,7 +52,7 @@ for visitStr in visits:
             if exist:
                 filterName = butler.queryMetadata(datasetType='raw', format=("filter",), dataId={'visit':visit})[0]
                 md = butler.get("calexp_md", visit=visit, ccd=ccd)
-                wcs = afwImage.makeWcs(md)
+                wcs = afwGeom.makeSkyWcs(md)
                 imageBox = afwGeom.Box2D(afwImage.bboxFromMetadata(md))
                 imageCorners = [wcs.pixelToSky(pix) for pix in imageBox.getCorners()]
                 imageCenter = wcs.pixelToSky(imageBox.getCenter())
