@@ -6,7 +6,7 @@ import lsst.utils
 import lsst.daf.persistence as dafPersist
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
-from lsst.geom import convexHull
+from lsst.sphgeom.ConvexPolygon import convexHull
 
 
 parser = argparse.ArgumentParser(description='Build a sqlite3 with patches overlapped by calexps')
