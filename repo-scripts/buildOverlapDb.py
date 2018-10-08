@@ -29,7 +29,7 @@ cur = conn.cursor()
 tables = ["calexp", ]
 for table in tables:
     cur.execute("drop table if exists %s" % table)
-    columns = {'visit': 'int', 'ccd': 'int', 'exist': 'int', 'tract': 'int', 'patch': 'str', 'ra': 'float', 'dec': 'float', 'filter': 'str'}
+    columns = {'visit': 'int', 'detector': 'int', 'exist': 'int', 'tract': 'int', 'patch': 'str', 'ra': 'float', 'dec': 'float', 'filter': 'str'}
     cmd = "create table %s (id integer primary key autoincrement, " % table
     cmd += ",".join([("%s %s" % (col, colType)) for col, colType in columns.items()])
     cmd += ")"
@@ -39,19 +39,19 @@ for table in tables:
 skymap = butler.get("deepCoadd_skyMap", {})
 for visitStr in visits:
     visit = int(visitStr)
-    for ccd in range(104):
+    for detector in range(189):
         for table in tables:
 
             try:
-                exist = butler.datasetExists(table, visit=visit, ccd=ccd)
+                exist = butler.datasetExists(table, visit=visit, detector=detector)
             except dafPersist.butlerExceptions.NoResults:
                 # likely those dataId are not included in the root registry
-                print('butler NoResults {} {} {}'.format(table, visit, ccd))
+                print('butler NoResults {} {} {}'.format(table, visit, detector))
                 continue
 
             if exist:
                 filterName = butler.queryMetadata(datasetType='raw', format=("filter",), dataId={'visit':visit})[0]
-                md = butler.get("calexp_md", visit=visit, ccd=ccd)
+                md = butler.get("calexp_md", visit=visit, detector=detector)
                 wcs = afwGeom.makeSkyWcs(md)
                 imageBox = afwGeom.Box2D(afwImage.bboxFromMetadata(md))
                 imageCorners = [wcs.pixelToSky(pix) for pix in imageBox.getCorners()]
@@ -74,14 +74,14 @@ for visitStr in visits:
                         patchOuterPoly = ConvexPolygon.convexHull([coord.getVector() for coord in patchOuterCorners])
                         overlap = patchOuterPoly.intersects(imagePoly)
 
-                        cmd = "insert into %s (visit, ccd, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, ccd, exist, tractInfo.getId(), patchId, ctrRa, ctrDec, filterName)
+                        cmd = "insert into %s (visit, detector, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, exist, tractInfo.getId(), patchId, ctrRa, ctrDec, filterName)
                         if overlap:
                             conn.execute(cmd)
                         else:
                             print('Edge case discrepancy betw ringSkyMap.findTractPatchList and convexHull select: {}'.format(cmd))
 
             else:
-                cmd = "insert into %s (visit, ccd, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, ccd, exist, -1, None, -999, -999, None)
+                cmd = "insert into %s (visit, detector, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, exist, -1, None, -999, -999, None)
                 conn.execute(cmd)
 
 
