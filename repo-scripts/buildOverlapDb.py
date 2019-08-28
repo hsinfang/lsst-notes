@@ -29,7 +29,7 @@ cur = conn.cursor()
 tables = ["calexp", ]
 for table in tables:
     cur.execute("drop table if exists %s" % table)
-    columns = {'visit': 'int', 'detector': 'int', 'exist': 'int', 'tract': 'int', 'patch': 'str', 'ra': 'float', 'dec': 'float', 'filter': 'str'}
+    columns = {'visit': 'int', 'detector': 'int', 'raftName': 'str', 'exist': 'int', 'tract': 'int', 'patch': 'str', 'ra': 'float', 'dec': 'float', 'filter': 'str'}
     cmd = "create table %s (id integer primary key autoincrement, " % table
     cmd += ",".join([("%s %s" % (col, colType)) for col, colType in columns.items()])
     cmd += ")"
@@ -51,6 +51,7 @@ for visitStr in visits:
 
             if exist:
                 filterName = butler.queryMetadata(datasetType='raw', format=("filter",), dataId={'visit':visit})[0]
+                raftName = butler.queryMetadata(datasetType='raw', format=("raftName",), dataId={'visit':visit, 'detector':detector})[0]
                 md = butler.get("calexp_md", visit=visit, detector=detector)
                 wcs = afwGeom.makeSkyWcs(md)
                 imageBox = afwGeom.Box2D(afwImage.bboxFromMetadata(md))
@@ -74,14 +75,14 @@ for visitStr in visits:
                         patchOuterPoly = ConvexPolygon.convexHull([coord.getVector() for coord in patchOuterCorners])
                         overlap = patchOuterPoly.intersects(imagePoly)
 
-                        cmd = "insert into %s (visit, detector, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, exist, tractInfo.getId(), patchId, ctrRa, ctrDec, filterName)
+                        cmd = "insert into %s (visit, detector, raftName, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%s', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, raftName, exist, tractInfo.getId(), patchId, ctrRa, ctrDec, filterName)
                         if overlap:
                             conn.execute(cmd)
                         else:
                             print('Edge case discrepancy betw ringSkyMap.findTractPatchList and convexHull select: {}'.format(cmd))
 
             else:
-                cmd = "insert into %s (visit, detector, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, exist, -1, None, -999, -999, None)
+                cmd = "insert into %s (visit, detector, raftName, exist, tract, patch, ra, dec, filter) values ('%d', '%d', '%s', '%d', '%d', '%s', '%f', '%f', '%s')" % (table, visit, detector, 'unkonwn', exist, -1, None, -999, -999, None)
                 conn.execute(cmd)
 
 
