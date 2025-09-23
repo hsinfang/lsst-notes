@@ -9,9 +9,11 @@ flowchart TD
         EmbargoRegistry["embargo Postgres"]
   end
  subgraph RepoUSDF["/repo/prompt, /repo/main"]
-        WekaStorage["/sdf/data"]
+        WekaStorage["/sdf/data (lossy compression after 30d?)"]
         RepoPromptRegistry["prompt Postgres"]
+        RepoPromptRegistryReplica["prompt Postgres Replica"]
         RepoMainRegistry["main Postgres"]
+
   end
  subgraph RepoCloud["repo at RSP"]
         CloudStorage["Hybrid from SLAC; Partially Cached at Cloud"]
@@ -22,15 +24,15 @@ flowchart TD
     Producer -- DIA catalogs --> APDB[("Cassandra APDB")]
     Catchup --> APDB & RepoEmbargo
     APDB -- Replication --> PPDB[("BigQuery PPDB")]
-    PPDB -- Bridge --> TAP[("PP TAP")]
-    Felis["sdm_schemas"] --> PPDB & APDB & TAP_SCHEMA["TAP_SCHEMA, VO Registration?"]
+    PPDB -- Bridge --> TAP["PP TAP"]
+    Felis["sdm_schemas"] -.-> PPDB & APDB & TAP_SCHEMA["TAP_SCHEMA, VO Registration?"]
     Producer -- Butler Files --> RepoEmbargo
     RepoEmbargo -- Unembargo after 80hr --> RepoUSDF
-    RepoUSDF -- "Expire data after 30d/1y?" ? --> Regeneration["Regeneration Servivce"]
+    RepoUSDF -- "Expire data products after 30d?" --- Regeneration["Regeneration Servivce"]
     WekaStorage -- when? --> CloudStorage
     RepoPromptRegistry -- when? --> CloudRegistry
     RepoCloud --> SODA["SIA/SODA/etc"]
-    RepoCloud -- ? --> ObsTAP["ObsTAP"]
-    Regeneration -- for data older than 30d/1yr? --> SODA
+    RepoPromptRegistryReplica --  ? --> ObsTAP["ObsTAP"]
+    Regeneration -- for data older than 30d? --> SODA
     TAP & ObsTAP & SODA --> RSP["RSP"]
     RepoCloud -- Notebook access --> RSP
