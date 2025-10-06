@@ -32,7 +32,7 @@ flowchart TD
     WekaStorage -- when? --> CloudStorage
     RepoPromptRegistry -- when? --> CloudRegistry
     RepoCloud --> SODA["SIA/SODA/etc"]
-    RepoPromptRegistryReplica --  ? --> ObsTAP["ObsTAP"]
+    RepoPromptRegistryReplica --  when? --> ObsTAP["ObsTAP"]
     Regeneration -- for data older than 30d? --> SODA
     TAP & ObsTAP & SODA --> RSP["RSP"]
     RepoCloud -- Notebook access --> RSP
